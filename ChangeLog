@@ -1,0 +1,15 @@
+
+	2017-02-14
+
+	Implementing basic operations on pressure sensor (BME280).
+
+	I thought that I could use WiringPi's read and write functions,
+	but it turns out that regular read() and write() functions work
+	just fine.
+
+	At this point I'm not using files from src/pressure
+	directory. Pressure sensor is configured with very simple code in
+	main() and then data is read with even simpler code in main(),
+	without usage of functions or definitions from src/pressure. Maybe
+	I will use that code for compensation. For now I'm relying on data
+	(register descriptions, configuration values etc.) from datasheet.
