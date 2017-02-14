@@ -1,10 +1,12 @@
 TARGET = mularsky
 CC     = gcc
-CFLAGS = -Wall -pedantic -std=c99
+CFLAGS = -Wall -pedantic -std=c99 -I./src/pressure/ -O
+LIBS   =  
+
 
 all: $(TARGET)
 
-# VPATH = src src/pressure/
+VPATH = src src/pressure/
 SRC = src/main.c \
 	src/pressure/bme280.c \
 	src/pressure/bme280_support.c
@@ -12,7 +14,7 @@ SRC = src/main.c \
 OBJS = $(SRC:.c=.o)
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS)  -o $@ $(OBJS)
+	$(CC) $(CFLAGS) $(LIBS)  -o $@ $(OBJS)
 
 
 clean:
