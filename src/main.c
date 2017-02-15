@@ -13,6 +13,19 @@
 
 
 
+/*
+  Unless otherwise noted, references to chapters or tables refer to BME280 datasheet from Bosh.
+
+  BME280: Final data sheet
+  Document revision 1.1
+  Document release date May 07 , 2015
+  Document number BST-BME280-DS001-10
+  Technical reference code(s) 0 273 141 185
+*/
+
+
+
+
 /* i2c-specific definitions. */
 #define I2C_FILENAME "/dev/i2c-1"
 #define BME280_I2C_ADDR 0x77
@@ -41,6 +54,8 @@
 
 static int pressure_fd = 0;
 static int m_i2c_read(int fd, uint8_t reg, uint8_t * buffer, size_t size);
+static void m_bme280_convert_and_store_data(const uint8_t * buffer);
+static void m_bme280_convert_and_store_compensation(const uint8_t * buffer);
 
 
 
@@ -79,6 +94,43 @@ int main(int argc, char ** argv)
 		uint8_t id = 0;
 		int rv = m_i2c_read(pressure_fd, BME280_REG_CHIP_ID, &id, 1);
 		fprintf(stderr, "%s:%d: rv = %d, chip id = 0x%02x\n", __FILE__, __LINE__, rv, id);
+	}
+
+
+
+	/* Read compensation data. */
+	{
+		uint8_t block_start = 0;
+		uint8_t buffer[24 + 1 + 8] = { 0 };
+		int rv = 0;
+
+		block_start = 0x88;
+		buffer[0] = block_start;
+		rv = m_i2c_read(pressure_fd, block_start, buffer + 0, 24); /* Read 24 bytes, store them at the beginning of buffer. */
+		if (rv == -1) {
+			fprintf(stderr, "%s:%d: read compensation 1 failed\n", __FILE__, __LINE__);
+			return -1;
+		}
+
+
+		block_start = 0xa1;
+		buffer[0 + 24] = block_start;
+		rv = m_i2c_read(pressure_fd, block_start, buffer + 0 + 24, 1); /* Read 1 byte, store it in cell #25 of buffer. */
+		if (rv == -1) {
+			fprintf(stderr, "%s:%d: read compensation 2 failed\n", __FILE__, __LINE__);
+			return -1;
+		}
+
+
+		block_start = 0xe1;
+		buffer[0 + 24 + 1] = block_start;
+		rv = m_i2c_read(pressure_fd, block_start, buffer + 0 + 24 + 1, 8); /* Read 8 bytes, store them in cells #26-#33. */
+		if (rv == -1) {
+			fprintf(stderr, "%s:%d: read compensation 3 failed\n", __FILE__, __LINE__);
+			return -1;
+		}
+
+		m_bme280_convert_and_store_compensation(buffer);
 	}
 
 
@@ -165,6 +217,9 @@ int main(int argc, char ** argv)
 			}
 			fprintf(stderr, "%02x %02x %02x %02x %02x %02x %02x %02x\n",
 				buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
+
+			m_bme280_convert_and_store_data(buffer);
+
 			usleep(1000 * 1000);
 		}
 	}
@@ -195,4 +250,59 @@ int m_i2c_read(int fd, uint8_t reg, uint8_t * buffer, size_t size)
 		return -1;
 	}
 	return 0;
+}
+
+
+
+
+/*
+  Measurement data is stored in buffer of size 8 bytes.
+  The data has been read in burst read of 8 bytes starting from 0xF7.
+*/
+void m_bme280_convert_and_store_data(const uint8_t * buffer)
+{
+	/* Chapter 4 Data readout.
+	   "The data are read out in an unsigned 20-bit format both
+	   for pressure and for temperature and in an unsigned 16-bit
+	   format for humidity."
+	   I'm using unsigned 32 bits for all three of them for consistency. */
+
+	uint32_t raw_pressure =
+		buffer[0] << 12     /* press_msb */
+		| buffer[1] << 4    /* press_lsb */
+		| buffer[2] >> 4;   /* press_xlsb */
+
+	uint32_t raw_temperature =
+		buffer[3] << 12     /* temp_msb */
+		| buffer[4] << 4    /* temp_lsb */
+		| buffer[5] >> 4;   /* temp_xlsb */
+
+	uint32_t raw_humidity =
+		buffer[6] << 8      /* hum_msb */
+		| buffer[7];        /* hum_lsb */
+
+	fprintf(stderr, "raw pressure = %u, raw temp = %u, raw humidity = %u\n", raw_pressure, raw_temperature, raw_humidity);
+
+	return;
+}
+
+
+
+
+/*
+  Compensation data described in
+  Chapter 4.2.2 Trimming parameter readout
+
+  The compensation data has been read into one continuous table of size 33 bytes.
+*/
+void m_bme280_convert_and_store_compensation(const uint8_t * buffer)
+{
+	/* The compensation data should be stored in bme280 data
+	   structure for later use by compensation functions. */
+
+	for (int i = 0; i < 33; i++) {
+		fprintf(stderr, "compensation data byte %02d: 0x%02x\n", i, *(buffer + i));
+	}
+
+	return;
 }
