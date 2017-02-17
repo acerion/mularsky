@@ -1,7 +1,7 @@
 TARGET = mularsky
 CC     = gcc
-CFLAGS = -Wall -pedantic -std=c99 -I./src/pressure/ -O
-LIBS   =  
+CFLAGS = -Wall -pedantic -std=c99 -I./src/pressure/ -I./src/ -O
+LIBS   =
 
 
 all: $(TARGET)
