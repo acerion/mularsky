@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <linux/i2c-dev.h>
 
+#include "m_bme280.h"
+
 
 
 
@@ -53,9 +55,10 @@
 
 
 static int pressure_fd = 0;
+static struct m_bme280_compensation bme280_comp;
 static int m_i2c_read(int fd, uint8_t reg, uint8_t * buffer, size_t size);
 static void m_bme280_convert_and_store_data(const uint8_t * buffer);
-static void m_bme280_convert_and_store_compensation(const uint8_t * buffer);
+static void m_bme280_convert_and_store_compensation(const uint8_t * buffer, struct m_bme280_compensation * c);
 
 
 
@@ -130,7 +133,7 @@ int main(int argc, char ** argv)
 			return -1;
 		}
 
-		m_bme280_convert_and_store_compensation(buffer);
+		m_bme280_convert_and_store_compensation(buffer, &bme280_comp);
 	}
 
 
@@ -293,9 +296,9 @@ void m_bme280_convert_and_store_data(const uint8_t * buffer)
   Compensation data described in
   Chapter 4.2.2 Trimming parameter readout
 
-  The compensation data has been read into one continuous table of size 33 bytes.
+  The compensation data has been read into one continuous table of size 32 bytes.
 */
-void m_bme280_convert_and_store_compensation(const uint8_t * buffer)
+void m_bme280_convert_and_store_compensation(const uint8_t * buffer, struct m_bme280_compensation * c)
 {
 	/* The compensation data should be stored in bme280 data
 	   structure for later use by compensation functions. */
@@ -303,6 +306,49 @@ void m_bme280_convert_and_store_compensation(const uint8_t * buffer)
 	for (int i = 0; i < 33; i++) {
 		fprintf(stderr, "compensation data byte %02d: 0x%02x\n", i, *(buffer + i));
 	}
+
+	c->dig_T1 = buffer[0]  | (uint16_t) buffer[1] << 8;
+	c->dig_T2 = buffer[2]  | (uint16_t) buffer[3] << 8;
+	c->dig_T3 = buffer[4]  | (uint16_t) buffer[5] << 8;
+
+	c->dig_P1 = buffer[6]  | (uint16_t) buffer[7] << 8;
+	c->dig_P2 = buffer[8]  | (uint16_t) buffer[9] << 8;
+	c->dig_P3 = buffer[10] | (uint16_t) buffer[11] << 8;
+	c->dig_P4 = buffer[12] | (uint16_t) buffer[13] << 8;
+	c->dig_P5 = buffer[14] | (uint16_t) buffer[15] << 8;
+	c->dig_P6 = buffer[16] | (uint16_t) buffer[17] << 8;
+	c->dig_P7 = buffer[18] | (uint16_t) buffer[19] << 8;
+	c->dig_P8 = buffer[20] | (uint16_t) buffer[21] << 8;
+	c->dig_P9 = buffer[22] | (uint16_t) buffer[23] << 8;
+
+	c->dig_H1 = buffer[24];
+	c->dig_H2 = buffer[25] | (uint16_t) buffer[26] << 8;
+	c->dig_H3 = buffer[27];
+	c->dig_H4 = ((uint16_t) buffer[28] << 4) | (0x0f & buffer[29]); /* This is probably messed up. */
+	c->dig_H5 = ((0xf0 & buffer[29]) >> 4) | ((uint16_t) buffer[30] << 4); /* This may be messed up as well. */
+	c->dig_H6 = buffer[31];
+
+	/* Printing both hex and decimal to see how the conversion from two's complement looks like. */
+	fprintf(stderr, "comp: T1 = 0x%08x / %u\n",   c->dig_T1, c->dig_T1);
+	fprintf(stderr, "comp: T2 = 0x%08x / %d\n",   c->dig_T2, c->dig_T2);
+	fprintf(stderr, "comp: T3 = 0x%08x / %d\n\n", c->dig_T3, c->dig_T3);
+
+	fprintf(stderr, "comp: P1 = 0x%08x / %u\n",   c->dig_P1, c->dig_P1);
+	fprintf(stderr, "comp: P2 = 0x%08x / %d\n",   c->dig_P2, c->dig_P2);
+	fprintf(stderr, "comp: P3 = 0x%08x / %d\n",   c->dig_P3, c->dig_P3);
+	fprintf(stderr, "comp: P4 = 0x%08x / %d\n",   c->dig_P4, c->dig_P4);
+	fprintf(stderr, "comp: P5 = 0x%08x / %d\n",   c->dig_P5, c->dig_P5);
+	fprintf(stderr, "comp: P6 = 0x%08x / %d\n",   c->dig_P6, c->dig_P6);
+	fprintf(stderr, "comp: P7 = 0x%08x / %d\n",   c->dig_P7, c->dig_P7);
+	fprintf(stderr, "comp: P8 = 0x%08x / %d\n",   c->dig_P8, c->dig_P8);
+	fprintf(stderr, "comp: P9 = 0x%08x / %d\n\n", c->dig_P9, c->dig_P9);
+
+	fprintf(stderr, "comp: H1 = 0x%08x / %u\n", c->dig_H1, c->dig_H1);
+	fprintf(stderr, "comp: H2 = 0x%08x / %d\n", c->dig_H2, c->dig_H2);
+	fprintf(stderr, "comp: H3 = 0x%08x / %u\n", c->dig_H3, c->dig_H3);
+	fprintf(stderr, "comp: H4 = 0x%08x / %d\n", c->dig_H4, c->dig_H4);
+	fprintf(stderr, "comp: H5 = 0x%08x / %d\n", c->dig_H5, c->dig_H5);
+	fprintf(stderr, "comp: H6 = 0x%08x / %d\n", c->dig_H6, c->dig_H6);
 
 	return;
 }
