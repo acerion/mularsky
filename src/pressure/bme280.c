@@ -155,11 +155,11 @@ s32 *v_uncomp_temperature_s32)
 			BME280_TEMPERATURE_DATA_LENGTH);
 			*v_uncomp_temperature_s32 = (s32)(((
 			(u32) (a_data_u8r[BME280_TEMPERATURE_MSB_DATA]))
-			<< BME280_SHIFT_BIT_POSITION_BY_12_BITS) |
+			<< 12) |
 			(((u32)(a_data_u8r[BME280_TEMPERATURE_LSB_DATA]))
-			<< BME280_SHIFT_BIT_POSITION_BY_04_BITS)
+			<< 04)
 			| ((u32)a_data_u8r[BME280_TEMPERATURE_XLSB_DATA] >>
-			BME280_SHIFT_BIT_POSITION_BY_04_BITS));
+			04));
 		}
 	return com_rslt;
 }
@@ -185,25 +185,25 @@ s32 bme280_compensate_temperature_int32(s32 v_uncomp_temperature_s32)
 	/* calculate x1*/
 	v_x1_u32r  =
 	((((v_uncomp_temperature_s32
-	>> BME280_SHIFT_BIT_POSITION_BY_03_BITS) -
+	>> 03) -
 	((s32)p_bme280->cal_param.dig_T1
-	<< BME280_SHIFT_BIT_POSITION_BY_01_BIT))) *
+	<< 01))) *
 	((s32)p_bme280->cal_param.dig_T2)) >>
-	BME280_SHIFT_BIT_POSITION_BY_11_BITS;
+	11;
 	/* calculate x2*/
 	v_x2_u32r  = (((((v_uncomp_temperature_s32
-	>> BME280_SHIFT_BIT_POSITION_BY_04_BITS) -
+	>> 04) -
 	((s32)p_bme280->cal_param.dig_T1))
-	* ((v_uncomp_temperature_s32 >> BME280_SHIFT_BIT_POSITION_BY_04_BITS) -
+	* ((v_uncomp_temperature_s32 >> 04) -
 	((s32)p_bme280->cal_param.dig_T1)))
-	>> BME280_SHIFT_BIT_POSITION_BY_12_BITS) *
+	>> 12) *
 	((s32)p_bme280->cal_param.dig_T3))
-	>> BME280_SHIFT_BIT_POSITION_BY_14_BITS;
+	>> 14;
 	/* calculate t_fine*/
 	p_bme280->cal_param.t_fine = v_x1_u32r + v_x2_u32r;
 	/* calculate temperature*/
 	temperature  = (p_bme280->cal_param.t_fine * 5 + 128)
-	>> BME280_SHIFT_BIT_POSITION_BY_08_BITS;
+	>> 08;
 	return temperature;
 }
 /*!
@@ -228,7 +228,7 @@ s32 v_uncomp_temperature_s32)
 	v_uncomp_temperature_s32);
 	temperature  = (s16)((((
 	p_bme280->cal_param.t_fine - 122880) * 25) + 128)
-	>> BME280_SHIFT_BIT_POSITION_BY_08_BITS);
+	>> 08);
 
 	return temperature;
 }
@@ -273,11 +273,11 @@ s32 *v_uncomp_pressure_s32)
 			a_data_u8, BME280_PRESSURE_DATA_LENGTH);
 			*v_uncomp_pressure_s32 = (s32)((
 			((u32)(a_data_u8[BME280_PRESSURE_MSB_DATA]))
-			<< BME280_SHIFT_BIT_POSITION_BY_12_BITS) |
+			<< 12) |
 			(((u32)(a_data_u8[BME280_PRESSURE_LSB_DATA]))
-			<< BME280_SHIFT_BIT_POSITION_BY_04_BITS) |
+			<< 04) |
 			((u32)a_data_u8[BME280_PRESSURE_XLSB_DATA] >>
-			BME280_SHIFT_BIT_POSITION_BY_04_BITS));
+			04));
 		}
 	return com_rslt;
 }
@@ -304,44 +304,44 @@ u32 bme280_compensate_pressure_int32(s32 v_uncomp_pressure_s32)
 
 	/* calculate x1*/
 	v_x1_u32 = (((s32)p_bme280->cal_param.t_fine)
-	>> BME280_SHIFT_BIT_POSITION_BY_01_BIT) - (s32)64000;
+	>> 01) - (s32)64000;
 	/* calculate x2*/
-	v_x2_u32 = (((v_x1_u32 >> BME280_SHIFT_BIT_POSITION_BY_02_BITS)
-	* (v_x1_u32 >> BME280_SHIFT_BIT_POSITION_BY_02_BITS)
-	) >> BME280_SHIFT_BIT_POSITION_BY_11_BITS)
+	v_x2_u32 = (((v_x1_u32 >> 02)
+	* (v_x1_u32 >> 02)
+	) >> 11)
 	* ((s32)p_bme280->cal_param.dig_P6);
 	/* calculate x2*/
 	v_x2_u32 = v_x2_u32 + ((v_x1_u32 *
 	((s32)p_bme280->cal_param.dig_P5))
-	<< BME280_SHIFT_BIT_POSITION_BY_01_BIT);
+	<< 01);
 	/* calculate x2*/
-	v_x2_u32 = (v_x2_u32 >> BME280_SHIFT_BIT_POSITION_BY_02_BITS) +
+	v_x2_u32 = (v_x2_u32 >> 02) +
 	(((s32)p_bme280->cal_param.dig_P4)
-	<< BME280_SHIFT_BIT_POSITION_BY_16_BITS);
+	<< 16);
 	/* calculate x1*/
 	v_x1_u32 = (((p_bme280->cal_param.dig_P3 *
-	(((v_x1_u32 >> BME280_SHIFT_BIT_POSITION_BY_02_BITS) *
-	(v_x1_u32 >> BME280_SHIFT_BIT_POSITION_BY_02_BITS))
-	>> BME280_SHIFT_BIT_POSITION_BY_13_BITS))
-	>> BME280_SHIFT_BIT_POSITION_BY_03_BITS) +
+	(((v_x1_u32 >> 02) *
+	(v_x1_u32 >> 02))
+	>> 13))
+	>> 03) +
 	((((s32)p_bme280->cal_param.dig_P2) *
-	v_x1_u32) >> BME280_SHIFT_BIT_POSITION_BY_01_BIT))
-	>> BME280_SHIFT_BIT_POSITION_BY_18_BITS;
+	v_x1_u32) >> 01))
+	>> 18;
 	/* calculate x1*/
 	v_x1_u32 = ((((32768 + v_x1_u32)) *
 	((s32)p_bme280->cal_param.dig_P1))
-	>> BME280_SHIFT_BIT_POSITION_BY_15_BITS);
+	>> 15);
 	/* calculate pressure*/
 	v_pressure_u32 =
 	(((u32)(((s32)1048576) - v_uncomp_pressure_s32)
-	- (v_x2_u32 >> BME280_SHIFT_BIT_POSITION_BY_12_BITS))) * 3125;
+	- (v_x2_u32 >> 12))) * 3125;
 	if (v_pressure_u32
 	< 0x80000000)
 		/* Avoid exception caused by division by zero */
 		if (v_x1_u32 != BME280_INIT_VALUE)
 			v_pressure_u32 =
 			(v_pressure_u32
-			<< BME280_SHIFT_BIT_POSITION_BY_01_BIT) /
+			<< 01) /
 			((u32)v_x1_u32);
 		else
 			return BME280_INVALID_DATA;
@@ -354,17 +354,17 @@ u32 bme280_compensate_pressure_int32(s32 v_uncomp_pressure_s32)
 			return BME280_INVALID_DATA;
 
 		v_x1_u32 = (((s32)p_bme280->cal_param.dig_P9) *
-		((s32)(((v_pressure_u32 >> BME280_SHIFT_BIT_POSITION_BY_03_BITS)
-		* (v_pressure_u32 >> BME280_SHIFT_BIT_POSITION_BY_03_BITS))
-		>> BME280_SHIFT_BIT_POSITION_BY_13_BITS)))
-		>> BME280_SHIFT_BIT_POSITION_BY_12_BITS;
+		((s32)(((v_pressure_u32 >> 03)
+		* (v_pressure_u32 >> 03))
+		>> 13)))
+		>> 12;
 		v_x2_u32 = (((s32)(v_pressure_u32
-		>> BME280_SHIFT_BIT_POSITION_BY_02_BITS)) *
+		>> 02)) *
 		((s32)p_bme280->cal_param.dig_P8))
-		>> BME280_SHIFT_BIT_POSITION_BY_13_BITS;
+		>> 13;
 		v_pressure_u32 = (u32)((s32)v_pressure_u32 +
 		((v_x1_u32 + v_x2_u32 + p_bme280->cal_param.dig_P7)
-		>> BME280_SHIFT_BIT_POSITION_BY_04_BITS));
+		>> 04));
 
 	return v_pressure_u32;
 }
@@ -407,7 +407,7 @@ s32 *v_uncomp_humidity_s32)
 			BME280_HUMIDITY_DATA_LENGTH);
 			*v_uncomp_humidity_s32 = (s32)(
 			(((u32)(a_data_u8[BME280_HUMIDITY_MSB_DATA]))
-			<< BME280_SHIFT_BIT_POSITION_BY_08_BITS)|
+			<< 08)|
 			((u32)(a_data_u8[BME280_HUMIDITY_LSB_DATA])));
 		}
 	return com_rslt;
@@ -434,28 +434,28 @@ u32 bme280_compensate_humidity_int32(s32 v_uncomp_humidity_s32)
 	v_x1_u32 = (p_bme280->cal_param.t_fine - ((s32)76800));
 	/* calculate x1*/
 	v_x1_u32 = (((((v_uncomp_humidity_s32
-	<< BME280_SHIFT_BIT_POSITION_BY_14_BITS) -
+	<< 14) -
 	(((s32)p_bme280->cal_param.dig_H4)
-	<< BME280_SHIFT_BIT_POSITION_BY_20_BITS) -
+	<< 20) -
 	(((s32)p_bme280->cal_param.dig_H5) * v_x1_u32)) +
-	((s32)16384)) >> BME280_SHIFT_BIT_POSITION_BY_15_BITS)
+	((s32)16384)) >> 15)
 	* (((((((v_x1_u32 *
 	((s32)p_bme280->cal_param.dig_H6))
-	>> BME280_SHIFT_BIT_POSITION_BY_10_BITS) *
+	>> 10) *
 	(((v_x1_u32 * ((s32)p_bme280->cal_param.dig_H3))
-	>> BME280_SHIFT_BIT_POSITION_BY_11_BITS) + ((s32)32768)))
-	>> BME280_SHIFT_BIT_POSITION_BY_10_BITS) + ((s32)2097152)) *
+	>> 11) + ((s32)32768)))
+	>> 10) + ((s32)2097152)) *
 	((s32)p_bme280->cal_param.dig_H2) + 8192) >> 14));
 	v_x1_u32 = (v_x1_u32 - (((((v_x1_u32
-	>> BME280_SHIFT_BIT_POSITION_BY_15_BITS) *
-	(v_x1_u32 >> BME280_SHIFT_BIT_POSITION_BY_15_BITS))
-	>> BME280_SHIFT_BIT_POSITION_BY_07_BITS) *
+	>> 15) *
+	(v_x1_u32 >> 15))
+	>> 07) *
 	((s32)p_bme280->cal_param.dig_H1))
-	>> BME280_SHIFT_BIT_POSITION_BY_04_BITS));
+	>> 04));
 	v_x1_u32 = (v_x1_u32 < 0 ? 0 : v_x1_u32);
 	v_x1_u32 = (v_x1_u32 > 419430400 ?
 	419430400 : v_x1_u32);
-	return (u32)(v_x1_u32 >> BME280_SHIFT_BIT_POSITION_BY_12_BITS);
+	return (u32)(v_x1_u32 >> 12);
 }
 /*!
  * @brief Reads actual humidity from uncompensated humidity
@@ -478,7 +478,7 @@ s32 v_uncomp_humidity_s32)
 	u16 v_x2_u32 = BME280_INIT_VALUE;
 
 	v_x1_u32 =  bme280_compensate_humidity_int32(v_uncomp_humidity_s32);
-	v_x2_u32 = (u16)(v_x1_u32 >> BME280_SHIFT_BIT_POSITION_BY_01_BIT);
+	v_x2_u32 = (u16)(v_x1_u32 >> 01);
 	return v_x2_u32;
 }
 /*!
@@ -533,31 +533,31 @@ s32 *v_uncomp_temperature_s32, s32 *v_uncomp_humidity_s32)
 			*v_uncomp_pressure_s32 = (s32)((
 			((u32)(a_data_u8[
 			BME280_DATA_FRAME_PRESSURE_MSB_BYTE]))
-			<< BME280_SHIFT_BIT_POSITION_BY_12_BITS) |
+			<< 12) |
 			(((u32)(a_data_u8[
 			BME280_DATA_FRAME_PRESSURE_LSB_BYTE]))
-			<< BME280_SHIFT_BIT_POSITION_BY_04_BITS) |
+			<< 04) |
 			((u32)a_data_u8[
 			BME280_DATA_FRAME_PRESSURE_XLSB_BYTE] >>
-			BME280_SHIFT_BIT_POSITION_BY_04_BITS));
+			04));
 
 			/* Temperature */
 			*v_uncomp_temperature_s32 = (s32)(((
 			(u32) (a_data_u8[
 			BME280_DATA_FRAME_TEMPERATURE_MSB_BYTE]))
-			<< BME280_SHIFT_BIT_POSITION_BY_12_BITS) |
+			<< 12) |
 			(((u32)(a_data_u8[
 			BME280_DATA_FRAME_TEMPERATURE_LSB_BYTE]))
-			<< BME280_SHIFT_BIT_POSITION_BY_04_BITS)
+			<< 04)
 			| ((u32)a_data_u8[
 			BME280_DATA_FRAME_TEMPERATURE_XLSB_BYTE]
-			>> BME280_SHIFT_BIT_POSITION_BY_04_BITS));
+			>> 04));
 
 			/*Humidity*/
 			*v_uncomp_humidity_s32 = (s32)((
 			((u32)(a_data_u8[
 			BME280_DATA_FRAME_HUMIDITY_MSB_BYTE]))
-			<< BME280_SHIFT_BIT_POSITION_BY_08_BITS)|
+			<< 08)|
 			((u32)(a_data_u8[
 			BME280_DATA_FRAME_HUMIDITY_LSB_BYTE])));
 		}
@@ -667,63 +667,63 @@ BME280_RETURN_FUNCTION_TYPE bme280_get_calib_param(void)
 			p_bme280->cal_param.dig_T1 = (u16)(((
 			(u16)((u8)a_data_u8[
 			BME280_TEMPERATURE_CALIB_DIG_T1_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_TEMPERATURE_CALIB_DIG_T1_LSB]);
 			p_bme280->cal_param.dig_T2 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_TEMPERATURE_CALIB_DIG_T2_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_TEMPERATURE_CALIB_DIG_T2_LSB]);
 			p_bme280->cal_param.dig_T3 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_TEMPERATURE_CALIB_DIG_T3_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_TEMPERATURE_CALIB_DIG_T3_LSB]);
 			p_bme280->cal_param.dig_P1 = (u16)(((
 			(u16)((u8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P1_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P1_LSB]);
 			p_bme280->cal_param.dig_P2 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P2_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P2_LSB]);
 			p_bme280->cal_param.dig_P3 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P3_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P3_LSB]);
 			p_bme280->cal_param.dig_P4 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P4_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P4_LSB]);
 			p_bme280->cal_param.dig_P5 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P5_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P5_LSB]);
 			p_bme280->cal_param.dig_P6 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P6_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P6_LSB]);
 			p_bme280->cal_param.dig_P7 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P7_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P7_LSB]);
 			p_bme280->cal_param.dig_P8 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P8_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P8_LSB]);
 			p_bme280->cal_param.dig_P9 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P9_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P9_LSB]);
 			p_bme280->cal_param.dig_H1 =
 			a_data_u8[BME280_HUMIDITY_CALIB_DIG_H1];
@@ -734,22 +734,22 @@ BME280_RETURN_FUNCTION_TYPE bme280_get_calib_param(void)
 			p_bme280->cal_param.dig_H2 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_HUMIDITY_CALIB_DIG_H2_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_08_BITS)
+			08)
 			| a_data_u8[BME280_HUMIDITY_CALIB_DIG_H2_LSB]);
 			p_bme280->cal_param.dig_H3 =
 			a_data_u8[BME280_HUMIDITY_CALIB_DIG_H3];
 			p_bme280->cal_param.dig_H4 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_HUMIDITY_CALIB_DIG_H4_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_04_BITS) |
+			04) |
 			(((u8)BME280_MASK_DIG_H4) &
 			a_data_u8[BME280_HUMIDITY_CALIB_DIG_H4_LSB]));
 			p_bme280->cal_param.dig_H5 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_HUMIDITY_CALIB_DIG_H5_MSB])) <<
-			BME280_SHIFT_BIT_POSITION_BY_04_BITS) |
+			04) |
 			(a_data_u8[BME280_HUMIDITY_CALIB_DIG_H4_LSB] >>
-			BME280_SHIFT_BIT_POSITION_BY_04_BITS));
+			04));
 			p_bme280->cal_param.dig_H6 =
 			(s8)a_data_u8[BME280_HUMIDITY_CALIB_DIG_H6];
 		}
@@ -2132,43 +2132,43 @@ u32 bme280_compensate_pressure_int64(s32 v_uncom_pressure_s32)
 	(s64)p_bme280->cal_param.dig_P6;
 	v_x2_s64r = v_x2_s64r + ((v_x1_s64r *
 	(s64)p_bme280->cal_param.dig_P5)
-	<< BME280_SHIFT_BIT_POSITION_BY_17_BITS);
+	<< 17);
 	v_x2_s64r = v_x2_s64r +
 	(((s64)p_bme280->cal_param.dig_P4)
-	<< BME280_SHIFT_BIT_POSITION_BY_35_BITS);
+	<< 35);
 	v_x1_s64r = ((v_x1_s64r * v_x1_s64r *
 	(s64)p_bme280->cal_param.dig_P3)
-	>> BME280_SHIFT_BIT_POSITION_BY_08_BITS) +
+	>> 08) +
 	((v_x1_s64r * (s64)p_bme280->cal_param.dig_P2)
-	<< BME280_SHIFT_BIT_POSITION_BY_12_BITS);
+	<< 12);
 	v_x1_s64r = (((((s64)1)
-	<< BME280_SHIFT_BIT_POSITION_BY_47_BITS) + v_x1_s64r)) *
+	<< 47) + v_x1_s64r)) *
 	((s64)p_bme280->cal_param.dig_P1)
-	>> BME280_SHIFT_BIT_POSITION_BY_33_BITS;
+	>> 33;
 	pressure = 1048576 - v_uncom_pressure_s32;
 	/* Avoid exception caused by division by zero */
 	if (v_x1_s64r != BME280_INIT_VALUE)
 		#if defined __KERNEL__
 			pressure = div64_s64((((pressure
-			<< BME280_SHIFT_BIT_POSITION_BY_31_BITS) - v_x2_s64r)
+			<< 31) - v_x2_s64r)
 			* 3125), v_x1_s64r);
 		#else
 			pressure = (((pressure
-			<< BME280_SHIFT_BIT_POSITION_BY_31_BITS) - v_x2_s64r)
+			<< 31) - v_x2_s64r)
 			* 3125) / v_x1_s64r;
 		#endif
 	else
 		return BME280_INVALID_DATA;
 	v_x1_s64r = (((s64)p_bme280->cal_param.dig_P9) *
-	(pressure >> BME280_SHIFT_BIT_POSITION_BY_13_BITS) *
-	(pressure >> BME280_SHIFT_BIT_POSITION_BY_13_BITS))
-	>> BME280_SHIFT_BIT_POSITION_BY_25_BITS;
+	(pressure >> 13) *
+	(pressure >> 13))
+	>> 25;
 	v_x2_s64r = (((s64)p_bme280->cal_param.dig_P8) *
-	pressure) >> BME280_SHIFT_BIT_POSITION_BY_19_BITS;
+	pressure) >> 19;
 	pressure = (((pressure + v_x1_s64r +
-	v_x2_s64r) >> BME280_SHIFT_BIT_POSITION_BY_08_BITS) +
+	v_x2_s64r) >> 08) +
 	(((s64)p_bme280->cal_param.dig_P7)
-	<< BME280_SHIFT_BIT_POSITION_BY_04_BITS));
+	<< 04));
 
 	return (u32)pressure;
 }
@@ -2193,7 +2193,7 @@ s32 v_uncom_pressure_s32)
 
 	pressure = bme280_compensate_pressure_int64(
 	v_uncom_pressure_s32);
-	pressure = (u32)(pressure >> BME280_SHIFT_BIT_POSITION_BY_01_BIT);
+	pressure = (u32)(pressure >> 01);
 	return pressure;
 }
 #endif
@@ -2220,11 +2220,11 @@ BME280_RETURN_FUNCTION_TYPE bme280_compute_wait_time(u8
 	T_MEASURE_PER_OSRS_MAX *
 	(((1 <<
 	p_bme280->oversamp_temperature)
-	>> BME280_SHIFT_BIT_POSITION_BY_01_BIT)
+	>> 01)
 	+ ((1 << p_bme280->oversamp_pressure)
-	>> BME280_SHIFT_BIT_POSITION_BY_01_BIT) +
+	>> 01) +
 	((1 << p_bme280->oversamp_humidity)
-	>> BME280_SHIFT_BIT_POSITION_BY_01_BIT))
+	>> 01))
 	+ ((p_bme280->oversamp_pressure > 0) ?
 	T_SETUP_PRESSURE_MAX : 0) +
 	((p_bme280->oversamp_humidity > 0) ?
