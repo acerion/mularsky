@@ -101,7 +101,7 @@ int main(int argc, char ** argv)
 	/* Read compensation data. */
 	{
 		uint8_t block_start = 0;
-		uint8_t buffer[24 + 1 + 8] = { 0 };
+		uint8_t buffer[24 + 1 + 7] = { 0 };
 		int rv = 0;
 
 		block_start = 0x88;
@@ -124,7 +124,7 @@ int main(int argc, char ** argv)
 
 		block_start = 0xe1;
 		buffer[0 + 24 + 1] = block_start;
-		rv = m_i2c_read(pressure_fd, block_start, buffer + 0 + 24 + 1, 8); /* Read 8 bytes, store them in cells #26-#33. */
+		rv = m_i2c_read(pressure_fd, block_start, buffer + 0 + 24 + 1, 7); /* Read 7 bytes, store them in cells #26-#32. */
 		if (rv == -1) {
 			fprintf(stderr, "%s:%d: read compensation 3 failed\n", __FILE__, __LINE__);
 			return -1;
