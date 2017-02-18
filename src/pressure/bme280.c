@@ -51,6 +51,7 @@
 * patent rights of the copyright holder.
 **************************************************************************/
 
+#include "m_bme280.h"
 #include "bme280.h"
 static struct bme280_t *p_bme280; /**< pointer to BME280 */
 
@@ -163,49 +164,30 @@ s32 *v_uncomp_temperature_s32)
 		}
 	return com_rslt;
 }
+
+
+
+
 /*!
  * @brief Reads actual temperature from uncompensated temperature
  * @note Returns the value in 0.01 degree Centigrade
  * Output value of "5123" equals 51.23 DegC.
  *
- *
- *
- *  @param  v_uncomp_temperature_s32 : value of uncompensated temperature
- *
+ *  @param t : value of uncompensated temperature
  *
  *  @return Returns the actual temperature
- *
-*/
-s32 bme280_compensate_temperature_int32(s32 v_uncomp_temperature_s32)
+ */
+int32_t bme280_compensate_temperature_int32(int32_t t, struct m_bme280_compensation * c)
 {
-	s32 v_x1_u32r = BME280_INIT_VALUE;
-	s32 v_x2_u32r = BME280_INIT_VALUE;
-	s32 temperature = BME280_INIT_VALUE;
-
-	/* calculate x1*/
-	v_x1_u32r  =
-	((((v_uncomp_temperature_s32
-	>> 03) -
-	((s32)p_bme280->cal_param.dig_T1
-	<< 01))) *
-	((s32)p_bme280->cal_param.dig_T2)) >>
-	11;
-	/* calculate x2*/
-	v_x2_u32r  = (((((v_uncomp_temperature_s32
-	>> 04) -
-	((s32)p_bme280->cal_param.dig_T1))
-	* ((v_uncomp_temperature_s32 >> 04) -
-	((s32)p_bme280->cal_param.dig_T1)))
-	>> 12) *
-	((s32)p_bme280->cal_param.dig_T3))
-	>> 14;
-	/* calculate t_fine*/
-	p_bme280->cal_param.t_fine = v_x1_u32r + v_x2_u32r;
-	/* calculate temperature*/
-	temperature  = (p_bme280->cal_param.t_fine * 5 + 128)
-	>> 08;
-	return temperature;
+	int32_t v_x1_u32r = ((((t >> 03) - ((s32) c->dig_T1 << 01))) * ((s32) c->dig_T2)) >> 11;
+	int32_t v_x2_u32r  = (((((t >> 04) - ((s32) c->dig_T1)) * ((t >> 04) - ((s32) c->dig_T1))) >> 12) * ((s32) c->dig_T3)) >> 14;
+	c->fine = v_x1_u32r + v_x2_u32r;
+	return (c->fine * 5 + 128) >> 8;
 }
+
+
+
+
 /*!
  * @brief Reads actual temperature from uncompensated temperature
  * @note Returns the value with 500LSB/DegC centred around 24 DegC
@@ -223,13 +205,13 @@ s16 bme280_compensate_temperature_int32_sixteen_bit_output(
 s32 v_uncomp_temperature_s32)
 {
 	s16 temperature = BME280_INIT_VALUE;
-
+#if 0
 	bme280_compensate_temperature_int32(
 	v_uncomp_temperature_s32);
 	temperature  = (s16)((((
 	p_bme280->cal_param.t_fine - 122880) * 25) + 128)
-	>> 08);
-
+	>> 8);
+#endif
 	return temperature;
 }
 /*!
@@ -281,93 +263,58 @@ s32 *v_uncomp_pressure_s32)
 		}
 	return com_rslt;
 }
+
+
+
+
 /*!
  * @brief Reads actual pressure from uncompensated pressure
  * @note Returns the value in Pascal(Pa)
  * Output value of "96386" equals 96386 Pa =
  * 963.86 hPa = 963.86 millibar
  *
- *
- *
- *  @param v_uncomp_pressure_s32 : value of uncompensated pressure
- *
- *
+ *  @param p: value of uncompensated pressure
  *
  *  @return Return the actual pressure output as u32
- *
-*/
-u32 bme280_compensate_pressure_int32(s32 v_uncomp_pressure_s32)
+ */
+uint32_t bme280_compensate_pressure_int32(int32_t p, struct m_bme280_compensation * c)
 {
-	s32 v_x1_u32 = BME280_INIT_VALUE;
-	s32 v_x2_u32 = BME280_INIT_VALUE;
-	u32 v_pressure_u32 = BME280_INIT_VALUE;
+	int32_t v_x1_u32 = (((s32) c->fine) >> 01) - (s32)64000;
+	int32_t v_x2_u32 = (((v_x1_u32 >> 02) * (v_x1_u32 >> 02)) >> 11) * ((s32) c->dig_P6);
 
-	/* calculate x1*/
-	v_x1_u32 = (((s32)p_bme280->cal_param.t_fine)
-	>> 01) - (s32)64000;
-	/* calculate x2*/
-	v_x2_u32 = (((v_x1_u32 >> 02)
-	* (v_x1_u32 >> 02)
-	) >> 11)
-	* ((s32)p_bme280->cal_param.dig_P6);
-	/* calculate x2*/
-	v_x2_u32 = v_x2_u32 + ((v_x1_u32 *
-	((s32)p_bme280->cal_param.dig_P5))
-	<< 01);
-	/* calculate x2*/
-	v_x2_u32 = (v_x2_u32 >> 02) +
-	(((s32)p_bme280->cal_param.dig_P4)
-	<< 16);
-	/* calculate x1*/
-	v_x1_u32 = (((p_bme280->cal_param.dig_P3 *
-	(((v_x1_u32 >> 02) *
-	(v_x1_u32 >> 02))
-	>> 13))
-	>> 03) +
-	((((s32)p_bme280->cal_param.dig_P2) *
-	v_x1_u32) >> 01))
-	>> 18;
-	/* calculate x1*/
-	v_x1_u32 = ((((32768 + v_x1_u32)) *
-	((s32)p_bme280->cal_param.dig_P1))
-	>> 15);
-	/* calculate pressure*/
-	v_pressure_u32 =
-	(((u32)(((s32)1048576) - v_uncomp_pressure_s32)
-	- (v_x2_u32 >> 12))) * 3125;
-	if (v_pressure_u32
-	< 0x80000000)
-		/* Avoid exception caused by division by zero */
-		if (v_x1_u32 != BME280_INIT_VALUE)
-			v_pressure_u32 =
-			(v_pressure_u32
-			<< 01) /
-			((u32)v_x1_u32);
-		else
-			return BME280_INVALID_DATA;
-	else
-		/* Avoid exception caused by division by zero */
-		if (v_x1_u32 != BME280_INIT_VALUE)
-			v_pressure_u32 = (v_pressure_u32
-			/ (u32)v_x1_u32) * 2;
-		else
-			return BME280_INVALID_DATA;
+	v_x2_u32 = v_x2_u32 + ((v_x1_u32 * ((s32) c->dig_P5)) << 01);
+	v_x2_u32 = (v_x2_u32 >> 02) + (((s32) c->dig_P4) << 16);
 
-		v_x1_u32 = (((s32)p_bme280->cal_param.dig_P9) *
-		((s32)(((v_pressure_u32 >> 03)
-		* (v_pressure_u32 >> 03))
-		>> 13)))
-		>> 12;
-		v_x2_u32 = (((s32)(v_pressure_u32
-		>> 02)) *
-		((s32)p_bme280->cal_param.dig_P8))
-		>> 13;
-		v_pressure_u32 = (u32)((s32)v_pressure_u32 +
-		((v_x1_u32 + v_x2_u32 + p_bme280->cal_param.dig_P7)
-		>> 04));
+	v_x1_u32 = (((c->dig_P3 * (((v_x1_u32 >> 02) * (v_x1_u32 >> 02)) >> 13)) >> 03) + ((((s32) c->dig_P2) * v_x1_u32) >> 01)) >> 18;
+	v_x1_u32 = ((((32768 + v_x1_u32)) * ((s32) c->dig_P1)) >> 15);
+
+	uint32_t v_pressure_u32 = (((u32)(((s32)1048576) - p) - (v_x2_u32 >> 12))) * 3125;
+	if (v_pressure_u32 < 0x80000000) {
+		/* Avoid exception caused by division by zero */
+		if (v_x1_u32 != BME280_INIT_VALUE) {
+			v_pressure_u32 = (v_pressure_u32 << 01) / ((u32)v_x1_u32);
+		} else {
+			return BME280_INVALID_DATA;
+		}
+	} else {
+		/* Avoid exception caused by division by zero */
+		if (v_x1_u32 != BME280_INIT_VALUE) {
+			v_pressure_u32 = (v_pressure_u32 / (u32)v_x1_u32) * 2;
+		} else {
+			return BME280_INVALID_DATA;
+		}
+
+		v_x1_u32 = (((s32) c->dig_P9) * ((s32)(((v_pressure_u32 >> 03) * (v_pressure_u32 >> 03))))) >> 12;
+		v_x2_u32 = (((s32)(v_pressure_u32 >> 02)) * ((s32) c->dig_P8)) >> 13;
+		v_pressure_u32 = (u32)((s32)v_pressure_u32 + ((v_x1_u32 + v_x2_u32 + c->dig_P7) >> 04));
+	}
 
 	return v_pressure_u32;
 }
+
+
+
+
 /*!
  *	@brief This API is used to read uncompensated humidity.
  *	in the registers 0xF7, 0xF8 and 0xF9
@@ -407,11 +354,15 @@ s32 *v_uncomp_humidity_s32)
 			BME280_HUMIDITY_DATA_LENGTH);
 			*v_uncomp_humidity_s32 = (s32)(
 			(((u32)(a_data_u8[BME280_HUMIDITY_MSB_DATA]))
-			<< 08)|
+			<< 8)|
 			((u32)(a_data_u8[BME280_HUMIDITY_LSB_DATA])));
 		}
 	return com_rslt;
 }
+
+
+
+
 /*!
  * @brief Reads actual humidity from uncompensated humidity
  * @note Returns the value in %rH as unsigned 32bit integer
@@ -419,44 +370,24 @@ s32 *v_uncomp_humidity_s32)
  * @note An output value of 42313
  * represents 42313 / 1024 = 41.321 %rH
  *
- *
- *
- *  @param  v_uncomp_humidity_s32: value of uncompensated humidity
+ *  @param h: value of uncompensated humidity
  *
  *  @return Return the actual relative humidity output as u32
- *
-*/
-u32 bme280_compensate_humidity_int32(s32 v_uncomp_humidity_s32)
+ */
+uint32_t bme280_compensate_humidity_int32(int32_t h, struct m_bme280_compensation * c)
 {
-	s32 v_x1_u32 = BME280_INIT_VALUE;
+	int32_t v_x1_u32 = (c->fine - ((s32)76800));
 
-	/* calculate x1*/
-	v_x1_u32 = (p_bme280->cal_param.t_fine - ((s32)76800));
-	/* calculate x1*/
-	v_x1_u32 = (((((v_uncomp_humidity_s32
-	<< 14) -
-	(((s32)p_bme280->cal_param.dig_H4)
-	<< 20) -
-	(((s32)p_bme280->cal_param.dig_H5) * v_x1_u32)) +
-	((s32)16384)) >> 15)
-	* (((((((v_x1_u32 *
-	((s32)p_bme280->cal_param.dig_H6))
-	>> 10) *
-	(((v_x1_u32 * ((s32)p_bme280->cal_param.dig_H3))
-	>> 11) + ((s32)32768)))
-	>> 10) + ((s32)2097152)) *
-	((s32)p_bme280->cal_param.dig_H2) + 8192) >> 14));
-	v_x1_u32 = (v_x1_u32 - (((((v_x1_u32
-	>> 15) *
-	(v_x1_u32 >> 15))
-	>> 07) *
-	((s32)p_bme280->cal_param.dig_H1))
-	>> 04));
+	v_x1_u32 = (((((h << 14) - (((s32) c->dig_H4) << 20) - (((s32) c->dig_H5) * v_x1_u32)) + ((s32)16384)) >> 15) * (((((((v_x1_u32 * ((s32) c->dig_H6)) >> 10) * (((v_x1_u32 * ((s32) c->dig_H3)) >> 11) + ((s32)32768))) >> 10) + ((s32)2097152)) * ((s32) c->dig_H2) + 8192) >> 14));
+	v_x1_u32 = (v_x1_u32 - (((((v_x1_u32 >> 15) * (v_x1_u32 >> 15)) >> 07) * ((s32) c->dig_H1)) >> 04));
 	v_x1_u32 = (v_x1_u32 < 0 ? 0 : v_x1_u32);
-	v_x1_u32 = (v_x1_u32 > 419430400 ?
-	419430400 : v_x1_u32);
+	v_x1_u32 = (v_x1_u32 > 419430400 ? 419430400 : v_x1_u32);
 	return (u32)(v_x1_u32 >> 12);
 }
+
+
+
+
 /*!
  * @brief Reads actual humidity from uncompensated humidity
  * @note Returns the value in %rH as unsigned 16bit integer
@@ -476,9 +407,11 @@ s32 v_uncomp_humidity_s32)
 {
 	u32 v_x1_u32 = BME280_INIT_VALUE;
 	u16 v_x2_u32 = BME280_INIT_VALUE;
-
+#if 0
 	v_x1_u32 =  bme280_compensate_humidity_int32(v_uncomp_humidity_s32);
+#endif
 	v_x2_u32 = (u16)(v_x1_u32 >> 01);
+
 	return v_x2_u32;
 }
 /*!
@@ -557,7 +490,7 @@ s32 *v_uncomp_temperature_s32, s32 *v_uncomp_humidity_s32)
 			*v_uncomp_humidity_s32 = (s32)((
 			((u32)(a_data_u8[
 			BME280_DATA_FRAME_HUMIDITY_MSB_BYTE]))
-			<< 08)|
+			<< 8)|
 			((u32)(a_data_u8[
 			BME280_DATA_FRAME_HUMIDITY_LSB_BYTE])));
 		}
@@ -588,6 +521,7 @@ u32 *v_pressure_u32, s32 *v_temperature_s32, u32 *v_humidity_u32)
 	s32 v_uncomp_pressure_s32 = BME280_INIT_VALUE;
 	s32 v_uncom_temperature_s32 = BME280_INIT_VALUE;
 	s32 v_uncom_humidity_s32 = BME280_INIT_VALUE;
+#if 0
 	/* check the p_bme280 structure pointer as NULL*/
 	if (p_bme280 == BME280_NULL) {
 		return E_BME280_NULL_PTR;
@@ -607,6 +541,7 @@ u32 *v_pressure_u32, s32 *v_temperature_s32, u32 *v_humidity_u32)
 			*v_humidity_u32 = bme280_compensate_humidity_int32(
 			v_uncom_humidity_s32);
 		}
+#endif
 	return com_rslt;
 }
 /*!
@@ -667,63 +602,63 @@ BME280_RETURN_FUNCTION_TYPE bme280_get_calib_param(void)
 			p_bme280->cal_param.dig_T1 = (u16)(((
 			(u16)((u8)a_data_u8[
 			BME280_TEMPERATURE_CALIB_DIG_T1_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_TEMPERATURE_CALIB_DIG_T1_LSB]);
 			p_bme280->cal_param.dig_T2 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_TEMPERATURE_CALIB_DIG_T2_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_TEMPERATURE_CALIB_DIG_T2_LSB]);
 			p_bme280->cal_param.dig_T3 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_TEMPERATURE_CALIB_DIG_T3_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_TEMPERATURE_CALIB_DIG_T3_LSB]);
 			p_bme280->cal_param.dig_P1 = (u16)(((
 			(u16)((u8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P1_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P1_LSB]);
 			p_bme280->cal_param.dig_P2 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P2_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P2_LSB]);
 			p_bme280->cal_param.dig_P3 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P3_MSB])) <<
-			08)
+			8)
 			| a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P3_LSB]);
 			p_bme280->cal_param.dig_P4 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P4_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P4_LSB]);
 			p_bme280->cal_param.dig_P5 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P5_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P5_LSB]);
 			p_bme280->cal_param.dig_P6 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P6_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P6_LSB]);
 			p_bme280->cal_param.dig_P7 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P7_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P7_LSB]);
 			p_bme280->cal_param.dig_P8 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P8_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P8_LSB]);
 			p_bme280->cal_param.dig_P9 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_PRESSURE_CALIB_DIG_P9_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_PRESSURE_CALIB_DIG_P9_LSB]);
 			p_bme280->cal_param.dig_H1 =
 			a_data_u8[BME280_HUMIDITY_CALIB_DIG_H1];
@@ -734,7 +669,7 @@ BME280_RETURN_FUNCTION_TYPE bme280_get_calib_param(void)
 			p_bme280->cal_param.dig_H2 = (s16)(((
 			(s16)((s8)a_data_u8[
 			BME280_HUMIDITY_CALIB_DIG_H2_MSB])) <<
-			08)
+			8)
 			| a_data_u8[BME280_HUMIDITY_CALIB_DIG_H2_LSB]);
 			p_bme280->cal_param.dig_H3 =
 			a_data_u8[BME280_HUMIDITY_CALIB_DIG_H3];
@@ -1986,122 +1921,97 @@ u8 *v_data_u8, u8 v_len_u8)
 	return com_rslt;
 }
 #ifdef BME280_ENABLE_FLOAT
+
+
+
+
 /*!
  * @brief Reads actual temperature from uncompensated temperature
  * @note returns the value in Degree centigrade
  * @note Output value of "51.23" equals 51.23 DegC.
  *
- *
- *
- *  @param v_uncom_temperature_s32 : value of uncompensated temperature
- *
- *
+ *  @param t: value of uncompensated temperature
  *
  *  @return  Return the actual temperature in floating point
- *
-*/
-double bme280_compensate_temperature_double(s32 v_uncom_temperature_s32)
+ */
+double bme280_compensate_temperature_double(int32_t t, struct m_bme280_compensation * c)
 {
-	double v_x1_u32 = BME280_INIT_VALUE;
-	double v_x2_u32 = BME280_INIT_VALUE;
-	double temperature = BME280_INIT_VALUE;
+	double v_x1_u32  = (((double) t) / 16384.0 - ((double) c->dig_T1) / 1024.0) * ((double) c->dig_T2);
+	double v_x2_u32  = ((((double) t) / 131072.0 - ((double) c->dig_T1) / 8192.0) * (((double) t) / 131072.0 - ((double) c->dig_T1) / 8192.0)) * ((double) c->dig_T3);
+	c->fine = (s32)(v_x1_u32 + v_x2_u32);
 
-	v_x1_u32  = (((double)v_uncom_temperature_s32) / 16384.0 -
-	((double)p_bme280->cal_param.dig_T1) / 1024.0) *
-	((double)p_bme280->cal_param.dig_T2);
-	v_x2_u32  = ((((double)v_uncom_temperature_s32) / 131072.0 -
-	((double)p_bme280->cal_param.dig_T1) / 8192.0) *
-	(((double)v_uncom_temperature_s32) / 131072.0 -
-	((double)p_bme280->cal_param.dig_T1) / 8192.0)) *
-	((double)p_bme280->cal_param.dig_T3);
-	p_bme280->cal_param.t_fine = (s32)(v_x1_u32 + v_x2_u32);
-	temperature  = (v_x1_u32 + v_x2_u32) / 5120.0;
-
-
-	return temperature;
+	return (v_x1_u32 + v_x2_u32) / 5120.0;
 }
+
+
+
+
 /*!
  * @brief Reads actual pressure from uncompensated pressure
  * @note Returns pressure in Pa as double.
  * @note Output value of "96386.2"
  * equals 96386.2 Pa = 963.862 hPa.
  *
+ *  @param p: value of uncompensated pressure
  *
- *  @param v_uncom_pressure_s32 : value of uncompensated pressure
- *
- *
- *  @return  Return the actual pressure in floating point
- *
-*/
-double bme280_compensate_pressure_double(s32 v_uncom_pressure_s32)
+ *  @return Return the actual pressure in floating point
+ */
+double bme280_compensate_pressure_double(int32_t p, struct m_bme280_compensation * c)
 {
-	double v_x1_u32 = BME280_INIT_VALUE;
-	double v_x2_u32 = BME280_INIT_VALUE;
-	double pressure = BME280_INIT_VALUE;
+	double v_x1_u32 = ((double) c->fine / 2.0) - 64000.0;
+	double v_x2_u32 = v_x1_u32 * v_x1_u32 * ((double) c->dig_P6) / 32768.0;
+	v_x2_u32 = v_x2_u32 + v_x1_u32 * ((double) c->dig_P5) * 2.0;
+	v_x2_u32 = (v_x2_u32 / 4.0) + (((double) c->dig_P4) * 65536.0);
+	v_x1_u32 = (((double) c->dig_P3) * v_x1_u32 * v_x1_u32 / 524288.0 + ((double) c->dig_P2) * v_x1_u32) / 524288.0;
+	v_x1_u32 = (1.0 + v_x1_u32 / 32768.0) * ((double) c->dig_P1);
 
-	v_x1_u32 = ((double)p_bme280->cal_param.t_fine /
-	2.0) - 64000.0;
-	v_x2_u32 = v_x1_u32 * v_x1_u32 *
-	((double)p_bme280->cal_param.dig_P6) / 32768.0;
-	v_x2_u32 = v_x2_u32 + v_x1_u32 *
-	((double)p_bme280->cal_param.dig_P5) * 2.0;
-	v_x2_u32 = (v_x2_u32 / 4.0) +
-	(((double)p_bme280->cal_param.dig_P4) * 65536.0);
-	v_x1_u32 = (((double)p_bme280->cal_param.dig_P3) *
-	v_x1_u32 * v_x1_u32 / 524288.0 +
-	((double)p_bme280->cal_param.dig_P2) * v_x1_u32) / 524288.0;
-	v_x1_u32 = (1.0 + v_x1_u32 / 32768.0) *
-	((double)p_bme280->cal_param.dig_P1);
-	pressure = 1048576.0 - (double)v_uncom_pressure_s32;
+	double pressure = 1048576.0 - (double) p;
 	/* Avoid exception caused by division by zero */
-	if ((v_x1_u32 > 0) || (v_x1_u32 < 0))
+	if ((v_x1_u32 > 0) || (v_x1_u32 < 0)) {
 		pressure = (pressure - (v_x2_u32 / 4096.0)) * 6250.0 / v_x1_u32;
-	else
+	} else {
 		return BME280_INVALID_DATA;
-	v_x1_u32 = ((double)p_bme280->cal_param.dig_P9) *
-	pressure * pressure / 2147483648.0;
-	v_x2_u32 = pressure * ((double)p_bme280->cal_param.dig_P8) / 32768.0;
-	pressure = pressure + (v_x1_u32 + v_x2_u32 +
-	((double)p_bme280->cal_param.dig_P7)) / 16.0;
+	}
+	v_x1_u32 = ((double) c->dig_P9) * pressure * pressure / 2147483648.0;
+	v_x2_u32 = pressure * ((double) c->dig_P8) / 32768.0;
+	pressure = pressure + (v_x1_u32 + v_x2_u32 + ((double) c->dig_P7)) / 16.0;
 
 	return pressure;
 }
+
+
+
+
 /*!
  * @brief Reads actual humidity from uncompensated humidity
  * @note returns the value in relative humidity (%rH)
  * @note Output value of "42.12" equals 42.12 %rH
  *
- *  @param v_uncom_humidity_s32 : value of uncompensated humidity
- *
- *
+ *  @param h: value of uncompensated humidity
  *
  *  @return Return the actual humidity in floating point
- *
-*/
-double bme280_compensate_humidity_double(s32 v_uncom_humidity_s32)
+ */
+double bme280_compensate_humidity_double(int32_t h, struct m_bme280_compensation * c)
 {
-	double var_h = BME280_INIT_VALUE;
-
-	var_h = (((double)p_bme280->cal_param.t_fine) - 76800.0);
-	if ((var_h > 0) || (var_h < 0))
-		var_h = (v_uncom_humidity_s32 -
-		(((double)p_bme280->cal_param.dig_H4) * 64.0 +
-		((double)p_bme280->cal_param.dig_H5) / 16384.0 * var_h))*
-		(((double)p_bme280->cal_param.dig_H2) / 65536.0 *
-		(1.0 + ((double) p_bme280->cal_param.dig_H6)
-		/ 67108864.0 * var_h * (1.0 + ((double)
-		p_bme280->cal_param.dig_H3) / 67108864.0 * var_h)));
-	else
+	double var_h = (((double) c->fine) - 76800.0);
+	if ((var_h > 0) || (var_h < 0)) {
+		var_h = (h - (((double) c->dig_H4) * 64.0 + ((double) c->dig_H5) / 16384.0 * var_h)) * (((double) c->dig_H2) / 65536.0 * (1.0 + ((double) c->dig_H6) / 67108864.0 * var_h * (1.0 + ((double) c->dig_H3) / 67108864.0 * var_h)));
+	} else {
 		return BME280_INVALID_DATA;
-	var_h = var_h * (1.0 - ((double)
-	p_bme280->cal_param.dig_H1)*var_h / 524288.0);
-	if (var_h > 100.0)
+	}
+	var_h = var_h * (1.0 - ((double) c->dig_H1)*var_h / 524288.0);
+	if (var_h > 100.0) {
 		var_h = 100.0;
-	else if (var_h < 0.0)
+	} else if (var_h < 0.0) {
 		var_h = 0.0;
+	}
 	return var_h;
 
 }
+
+
+
+
 #endif
 #if defined(BME280_ENABLE_INT64) && defined(BME280_64BITSUPPORT_PRESENT)
 /*!
@@ -2112,66 +2022,39 @@ double bme280_compensate_humidity_double(s32 v_uncom_humidity_s32)
  * @note Output value of "24674867"
  * represents 24674867 / 256 = 96386.2 Pa = 963.862 hPa
  *
- *
- *
- *  @param  v_uncom_pressure_s32 : value of uncompensated temperature
- *
+ *  @param p: value of uncompensated temperature
  *
  *  @return Return the actual pressure in u32
- *
-*/
-u32 bme280_compensate_pressure_int64(s32 v_uncom_pressure_s32)
+ */
+uint32_t bme280_compensate_pressure_int64(int32_t p, struct m_bme280_compensation * c)
 {
-	s64 v_x1_s64r = BME280_INIT_VALUE;
-	s64 v_x2_s64r = BME280_INIT_VALUE;
-	s64 pressure = BME280_INIT_VALUE;
-
-	v_x1_s64r = ((s64)p_bme280->cal_param.t_fine)
-	- 128000;
-	v_x2_s64r = v_x1_s64r * v_x1_s64r *
-	(s64)p_bme280->cal_param.dig_P6;
-	v_x2_s64r = v_x2_s64r + ((v_x1_s64r *
-	(s64)p_bme280->cal_param.dig_P5)
-	<< 17);
-	v_x2_s64r = v_x2_s64r +
-	(((s64)p_bme280->cal_param.dig_P4)
-	<< 35);
-	v_x1_s64r = ((v_x1_s64r * v_x1_s64r *
-	(s64)p_bme280->cal_param.dig_P3)
-	>> 08) +
-	((v_x1_s64r * (s64)p_bme280->cal_param.dig_P2)
-	<< 12);
-	v_x1_s64r = (((((s64)1)
-	<< 47) + v_x1_s64r)) *
-	((s64)p_bme280->cal_param.dig_P1)
-	>> 33;
-	pressure = 1048576 - v_uncom_pressure_s32;
+	int64_t v_x1_s64r = ((s64)p_bme280->cal_param.t_fine) - 128000;
+	int64_t v_x2_s64r = v_x1_s64r * v_x1_s64r * (s64)p_bme280->cal_param.dig_P6;
+	v_x2_s64r = v_x2_s64r + ((v_x1_s64r * (s64)p_bme280->cal_param.dig_P5) << 17);
+	v_x2_s64r = v_x2_s64r + (((s64)p_bme280->cal_param.dig_P4) << 35);
+	v_x1_s64r = ((v_x1_s64r * v_x1_s64r * (s64)p_bme280->cal_param.dig_P3) >> 8) + ((v_x1_s64r * (s64)p_bme280->cal_param.dig_P2) << 12);
+	v_x1_s64r = (((((s64)1)	<< 47) + v_x1_s64r)) * ((s64)p_bme280->cal_param.dig_P1) >> 33;
+	int64_t pressure = 1048576 - p;
 	/* Avoid exception caused by division by zero */
-	if (v_x1_s64r != BME280_INIT_VALUE)
+	if (v_x1_s64r != BME280_INIT_VALUE) {
 		#if defined __KERNEL__
-			pressure = div64_s64((((pressure
-			<< 31) - v_x2_s64r)
-			* 3125), v_x1_s64r);
+			pressure = div64_s64((((pressure << 31) - v_x2_s64r) * 3125), v_x1_s64r);
 		#else
-			pressure = (((pressure
-			<< 31) - v_x2_s64r)
-			* 3125) / v_x1_s64r;
+			pressure = (((pressure << 31) - v_x2_s64r) * 3125) / v_x1_s64r;
 		#endif
-	else
+	} else {
 		return BME280_INVALID_DATA;
-	v_x1_s64r = (((s64)p_bme280->cal_param.dig_P9) *
-	(pressure >> 13) *
-	(pressure >> 13))
-	>> 25;
-	v_x2_s64r = (((s64)p_bme280->cal_param.dig_P8) *
-	pressure) >> 19;
-	pressure = (((pressure + v_x1_s64r +
-	v_x2_s64r) >> 08) +
-	(((s64)p_bme280->cal_param.dig_P7)
-	<< 04));
+	}
+	v_x1_s64r = (((s64)p_bme280->cal_param.dig_P9) * (pressure >> 13) * (pressure >> 13)) >> 25;
+	v_x2_s64r = (((s64)p_bme280->cal_param.dig_P8) * pressure) >> 19;
+	pressure = (((pressure + v_x1_s64r + v_x2_s64r) >> 8) + (((s64)p_bme280->cal_param.dig_P7) << 04));
 
 	return (u32)pressure;
 }
+
+
+
+
 /*!
  * @brief Reads actual pressure from uncompensated pressure
  * @note Returns the value in Pa.
@@ -2190,10 +2073,12 @@ u32 bme280_compensate_pressure_int64_twentyfour_bit_output(
 s32 v_uncom_pressure_s32)
 {
 	u32 pressure = BME280_INIT_VALUE;
-
+#if 0
 	pressure = bme280_compensate_pressure_int64(
 	v_uncom_pressure_s32);
+#endif
 	pressure = (u32)(pressure >> 01);
+
 	return pressure;
 }
 #endif

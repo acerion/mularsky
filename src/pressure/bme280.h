@@ -60,6 +60,10 @@
 #define __BME280_H__
 
 
+#include <stdint.h>
+
+#include "m_bme280.h"
+
 /*!
 * @brief The following definition uses for define the data types
 *
@@ -898,20 +902,20 @@ s32 *v_uncomp_temperature_s32);
 /**************************************************************/
 /**\name	FUNCTION FOR  INTIALIZATION TRUE TEMPERATURE */
 /**************************************************************/
+
+
 /*!
  * @brief Reads actual temperature from uncompensated temperature
  * @note Returns the value in 0.01 degree Centigrade
  * Output value of "5123" equals 51.23 DegC.
  *
- *
- *
- *  @param  v_uncomp_temperature_s32 : value of uncompensated temperature
- *
+ *  @param t: value of uncompensated temperature
  *
  *  @return Returns the actual temperature
- *
-*/
-s32 bme280_compensate_temperature_int32(s32 v_uncomp_temperature_s32);
+ */
+int32_t bme280_compensate_temperature_int32(int32_t t, struct m_bme280_compensation * c);
+
+
 /*!
  * @brief Reads actual temperature from uncompensated temperature
  * @note Returns the value with 500LSB/DegC centred around 24 DegC
@@ -954,22 +958,25 @@ s32 *v_uncomp_pressure_s32);
 /**************************************************************/
 /**\name	FUNCTION FOR  INTIALIZATION TRUE PRESSURE */
 /**************************************************************/
+
+
+
+
 /*!
  * @brief Reads actual pressure from uncompensated pressure
  * @note Returns the value in Pascal(Pa)
  * Output value of "96386" equals 96386 Pa =
  * 963.86 hPa = 963.86 millibar
  *
- *
- *
- *  @param v_uncomp_pressure_s32 : value of uncompensated pressure
- *
- *
+ *  @param p: value of uncompensated pressure
  *
  *  @return Return the actual pressure output as u32
- *
-*/
-u32 bme280_compensate_pressure_int32(s32 v_uncomp_pressure_s32);
+ */
+uint32_t bme280_compensate_pressure_int32(int32_t p, struct m_bme280_compensation * c);
+
+
+
+
 /**************************************************************/
 /**\name	FUNCTION FOR  INTIALIZATION UNCOMPENSATED HUMIDITY */
 /**************************************************************/
@@ -996,6 +1003,10 @@ s32 *v_uncomp_humidity_s32);
 /**************************************************************/
 /**\name	FUNCTION FOR  INTIALIZATION RELATIVE HUMIDITY */
 /**************************************************************/
+
+
+
+
 /*!
  * @brief Reads actual humidity from uncompensated humidity
  * @note Returns the value in %rH as unsigned 32bit integer
@@ -1003,14 +1014,15 @@ s32 *v_uncomp_humidity_s32);
  * @note An output value of 42313
  * represents 42313 / 1024 = 41.321 %rH
  *
- *
- *
- *  @param  v_uncomp_humidity_s32: value of uncompensated humidity
+ *  @param h: value of uncompensated humidity
  *
  *  @return Return the actual relative humidity output as u32
- *
-*/
-u32 bme280_compensate_humidity_int32(s32 v_uncomp_humidity_s32);
+ */
+uint32_t bme280_compensate_humidity_int32(int32_t h, struct m_bme280_compensation * c);
+
+
+
+
 /*!
  * @brief Reads actual humidity from uncompensated humidity
  * @note Returns the value in %rH as unsigned 16bit integer
@@ -1602,22 +1614,24 @@ u8 *v_data_u8, u8 v_len_u8);
 /**\name	FUNCTION FOR FLOAT OUTPUT TEMPERATURE*/
 /**************************************************************/
 #ifdef BME280_ENABLE_FLOAT
+
+
+
+
 /*!
  * @brief Reads actual temperature from uncompensated temperature
  * @note returns the value in Degree centigrade
  * @note Output value of "51.23" equals 51.23 DegC.
  *
+ *  @param t: value of uncompensated temperature
  *
- *
- *  @param v_uncom_temperature_s32 : value of uncompensated temperature
- *
- *
- *
- *  @return  Return the actual temperature in floating point
- *
-*/
-double bme280_compensate_temperature_double(
-s32 v_uncom_temperature_s32);
+ *  @return Return the actual temperature in floating point
+ */
+double bme280_compensate_temperature_double(int32_t t, struct m_bme280_compensation * c);
+
+
+
+
 /**************************************************************/
 /**\name	FUNCTION FOR FLOAT OUTPUT PRESSURE*/
 /**************************************************************/
@@ -1627,35 +1641,45 @@ s32 v_uncom_temperature_s32);
  * @note Output value of "96386.2"
  * equals 96386.2 Pa = 963.862 hPa.
  *
+ *  @param p: value of uncompensated pressure
  *
- *  @param v_uncom_pressure_s32 : value of uncompensated pressure
- *
- *
- *  @return  Return the actual pressure in floating point
- *
-*/
-double bme280_compensate_pressure_double(s32 v_uncom_pressure_s32);
+ *  @return Return the actual pressure in floating point
+ */
+double bme280_compensate_pressure_double(int32_t p, struct m_bme280_compensation * c);
+
+
+
+
 /**************************************************************/
 /**\name	FUNCTION FOR FLOAT OUTPUT HUMIDITY*/
 /**************************************************************/
+
+
+
+
 /*!
  * @brief Reads actual humidity from uncompensated humidity
  * @note returns the value in relative humidity (%rH)
  * @note Output value of "42.12" equals 42.12 %rH
  *
- *  @param v_uncom_humidity_s32 : value of uncompensated humidity
- *
- *
+ *  @param h: value of uncompensated humidity
  *
  *  @return Return the actual humidity in floating point
- *
-*/
-double bme280_compensate_humidity_double(s32 v_uncom_humidity_s32);
+ */
+double bme280_compensate_humidity_double(int32_t h, struct m_bme280_compensation * c);
+
+
+
+
 #endif
 /**************************************************************/
 /**\name	FUNCTION FOR 64BIT OUTPUT PRESSURE*/
 /**************************************************************/
 #if defined(BME280_ENABLE_INT64) && defined(BME280_64BITSUPPORT_PRESENT)
+
+
+
+
 /*!
  * @brief Reads actual pressure from uncompensated pressure
  * @note Returns the value in Pa as unsigned 32 bit
@@ -1664,15 +1688,15 @@ double bme280_compensate_humidity_double(s32 v_uncom_humidity_s32);
  * @note Output value of "24674867"
  * represents 24674867 / 256 = 96386.2 Pa = 963.862 hPa
  *
- *
- *
- *  @param  v_uncom_pressure_s32 : value of uncompensated temperature
- *
+ *  @param p: value of uncompensated temperature
  *
  *  @return Return the actual pressure in u32
- *
-*/
-u32 bme280_compensate_pressure_int64(s32 v_uncom_pressure_s32);
+ */
+uint32_t bme280_compensate_pressure_int64(int32_t p, struct m_bme280_compensation * c);
+
+
+
+
 /**************************************************************/
 /**\name	FUNCTION FOR 24BIT OUTPUT PRESSURE*/
 /**************************************************************/
