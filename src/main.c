@@ -11,6 +11,7 @@
 #include <linux/i2c-dev.h>
 
 #include "m_bme280.h"
+#include "bme280.h"
 
 
 
@@ -218,8 +219,7 @@ int main(int argc, char ** argv)
 				fprintf(stderr, "%s:%d: read data failed\n", __FILE__, __LINE__);
 				return -1;
 			}
-			fprintf(stderr, "%02x %02x %02x %02x %02x %02x %02x %02x\n",
-				buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
+			//fprintf(stderr, "%02x %02x %02x %02x %02x %02x %02x %02x\n", buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
 
 			m_bme280_convert_and_store_data(buffer);
 
@@ -284,7 +284,10 @@ void m_bme280_convert_and_store_data(const uint8_t * buffer)
 		buffer[6] << 8      /* hum_msb */
 		| buffer[7];        /* hum_lsb */
 
-	fprintf(stderr, "raw pressure = %u, raw temp = %u, raw humidity = %u\n", raw_pressure, raw_temperature, raw_humidity);
+	fprintf(stderr, "%u, %u, %u, %d, %u, %u\n",
+		raw_pressure, bme280_compensate_pressure_int32(raw_pressure, &bme280_comp),
+		raw_temperature, bme280_compensate_temperature_int32(raw_temperature, &bme280_comp),
+		raw_humidity, bme280_compensate_pressure_int32(raw_humidity, &bme280_comp));
 
 	return;
 }
