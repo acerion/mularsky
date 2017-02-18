@@ -1,5 +1,15 @@
+	2017-02-18
+
+	Pressure sensor:
+
+	Beginning to use compensation functions from Bosh's files. This
+	means that I'm able to read actual values of pressure, temperature
+	and humidity.
+
 
 	2017-02-14
+
+	Pressure sensor:
 
 	Implementing basic operations on pressure sensor (BME280).
 
