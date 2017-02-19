@@ -1,3 +1,13 @@
+	2017-02-19
+
+	Pressure sensor:
+
+	Removing from Bosh's files all code that is not directly related
+	to calculating of compensated values of measurements. Compensation
+	of measurements is the only thing that I will need from Bosh's
+	files in my project. bme280_support.c has been removed entirely.
+
+
 	2017-02-18
 
 	Pressure sensor:
