@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "m_bme280.h"
 #include "m_i2c.h"
@@ -23,6 +24,19 @@
 
 
 
+int pressure_sensor_fd = 0;
+
+extern bool cancel_treads;
+
+static FILE * pressure_out_fd;
+static struct m_bme280_compensation bme280_comp;
+static const int pressure_ms = 1000; /* [milliseconds] */
+
+
+
+
+#define BME280_I2C_ADDR 0x77
+
 /* BME280 configuration registers and their contents (chip configuration). */
 
 #define BME280_REG_CHIP_ID         0xD0   /* Read only. */
@@ -43,6 +57,11 @@
 
 
 static void m_bme280_convert_and_store_compensation(const uint8_t * buffer, struct m_bme280_compensation * c);
+static uint8_t m_bme280_read_chip_id(int fd);
+static int m_bme280_configure(int fd);
+static int m_bme280_get_compensation_data(int fd, struct m_bme280_compensation * c);
+static void m_bme280_convert_and_store_data(const uint8_t * buffer, struct m_bme280_compensation * c);
+static int m_bme280_read_loop(int fd, int ms, struct m_bme280_compensation * c);
 
 
 
@@ -57,7 +76,7 @@ uint8_t m_bme280_read_chip_id(int fd)
 {
 	uint8_t id = 0;
 	if (-1 == m_i2c_read(fd, BME280_REG_CHIP_ID, &id, 1)) {
-		fprintf(stderr, "%s:%d: failed to read pressure chip id\n", __FILE__, __LINE__);
+		fprintf(pressure_out_fd, "%s:%d: failed to read pressure chip id\n", __FILE__, __LINE__);
 		return 0;
 	}
 
@@ -82,7 +101,7 @@ int m_bme280_configure(int fd)
 	buffer[0] = BME280_REG_CTRL_MEAS;
 	buffer[1] = 0x00;
 	if (write(fd, buffer, 2) != 2) {
-		fprintf(stderr, "%s:%d: write config 0 failed\n", __FILE__, __LINE__);
+		fprintf(pressure_out_fd, "%s:%d: write config 0 failed\n", __FILE__, __LINE__);
 		return -1;
 	}
 
@@ -101,14 +120,14 @@ int m_bme280_configure(int fd)
 	buffer[0] = BME280_REG_CTRL_CONFIG;
 	buffer[1] = BME280_SETTING_STBY | BME280_SETTING_FILTER;
 	if (write(fd, buffer, 2) != 2) {
-		fprintf(stderr, "%s:%d: write config 1 failed\n", __FILE__, __LINE__);
+		fprintf(pressure_out_fd, "%s:%d: write config 1 failed\n", __FILE__, __LINE__);
 		return -1;
 	}
 
 	buffer[0] = BME280_REG_CTRL_HUM;
 	buffer[1] = BME280_SETTING_HUM_OS;
 	if (write(fd, buffer, 2) != 2) {
-		fprintf(stderr, "%s:%d: write config 2 failed\n", __FILE__, __LINE__);
+		fprintf(pressure_out_fd, "%s:%d: write config 2 failed\n", __FILE__, __LINE__);
 			return -1;
 	}
 
@@ -116,7 +135,7 @@ int m_bme280_configure(int fd)
 	buffer[0] = BME280_REG_CTRL_MEAS;
 	buffer[1] = BME280_SETTING_TEMP_OS | BME280_SETTING_PRESS_OS | BME280_SETTING_MODE;
 	if (write(fd, buffer, 2) != 2) {
-		fprintf(stderr, "%s:%d: write config 3 failed\n", __FILE__, __LINE__);
+		fprintf(pressure_out_fd, "%s:%d: write config 3 failed\n", __FILE__, __LINE__);
 		return -1;
 	}
 
@@ -136,7 +155,7 @@ int m_bme280_get_compensation_data(int fd, struct m_bme280_compensation * c)
 	buffer[0] = block_start;
 	rv = m_i2c_read(fd, block_start, buffer + 0, 24); /* Read 24 bytes, store them at the beginning of buffer. */
 	if (rv == -1) {
-		fprintf(stderr, "%s:%d: read compensation 1 failed\n", __FILE__, __LINE__);
+		fprintf(pressure_out_fd, "%s:%d: read compensation 1 failed\n", __FILE__, __LINE__);
 		return -1;
 	}
 
@@ -145,7 +164,7 @@ int m_bme280_get_compensation_data(int fd, struct m_bme280_compensation * c)
 	buffer[0 + 24] = block_start;
 	rv = m_i2c_read(fd, block_start, buffer + 0 + 24, 1); /* Read 1 byte, store it in cell #25 of buffer. */
 	if (rv == -1) {
-		fprintf(stderr, "%s:%d: read compensation 2 failed\n", __FILE__, __LINE__);
+		fprintf(pressure_out_fd, "%s:%d: read compensation 2 failed\n", __FILE__, __LINE__);
 		return -1;
 	}
 
@@ -154,7 +173,7 @@ int m_bme280_get_compensation_data(int fd, struct m_bme280_compensation * c)
 	buffer[0 + 24 + 1] = block_start;
 	rv = m_i2c_read(fd, block_start, buffer + 0 + 24 + 1, 7); /* Read 7 bytes, store them in cells #26-#32. */
 	if (rv == -1) {
-		fprintf(stderr, "%s:%d: read compensation 3 failed\n", __FILE__, __LINE__);
+		fprintf(pressure_out_fd, "%s:%d: read compensation 3 failed\n", __FILE__, __LINE__);
 		return -1;
 	}
 
@@ -177,9 +196,9 @@ void m_bme280_convert_and_store_compensation(const uint8_t * buffer, struct m_bm
 	/* The compensation data should be stored in bme280 data
 	   structure for later use by compensation functions. */
 
-	fprintf(stderr, "\n");
+	fprintf(pressure_out_fd, "\n");
 	for (int i = 0; i < 33; i++) {
-		fprintf(stderr, "compensation data byte %02d: 0x%02x\n", i, *(buffer + i));
+		fprintf(pressure_out_fd, "compensation data byte %02d: 0x%02x\n", i, *(buffer + i));
 	}
 
 	c->dig_T1 = buffer[0]  | (uint16_t) buffer[1] << 8;
@@ -204,31 +223,31 @@ void m_bme280_convert_and_store_compensation(const uint8_t * buffer, struct m_bm
 	c->dig_H6 = buffer[31];
 
 
-	fprintf(stderr, "\n");
+	fprintf(pressure_out_fd, "\n");
 
 	/* Printing both hex and decimal to see how the conversion from two's complement looks like. */
-	fprintf(stderr, "comp: T1 = 0x%08x / %u\n",   c->dig_T1, c->dig_T1);
-	fprintf(stderr, "comp: T2 = 0x%08x / %d\n",   c->dig_T2, c->dig_T2);
-	fprintf(stderr, "comp: T3 = 0x%08x / %d\n\n", c->dig_T3, c->dig_T3);
+	fprintf(pressure_out_fd, "comp: T1 = 0x%08x / %u\n",   c->dig_T1, c->dig_T1);
+	fprintf(pressure_out_fd, "comp: T2 = 0x%08x / %d\n",   c->dig_T2, c->dig_T2);
+	fprintf(pressure_out_fd, "comp: T3 = 0x%08x / %d\n\n", c->dig_T3, c->dig_T3);
 
-	fprintf(stderr, "comp: P1 = 0x%08x / %u\n",   c->dig_P1, c->dig_P1);
-	fprintf(stderr, "comp: P2 = 0x%08x / %d\n",   c->dig_P2, c->dig_P2);
-	fprintf(stderr, "comp: P3 = 0x%08x / %d\n",   c->dig_P3, c->dig_P3);
-	fprintf(stderr, "comp: P4 = 0x%08x / %d\n",   c->dig_P4, c->dig_P4);
-	fprintf(stderr, "comp: P5 = 0x%08x / %d\n",   c->dig_P5, c->dig_P5);
-	fprintf(stderr, "comp: P6 = 0x%08x / %d\n",   c->dig_P6, c->dig_P6);
-	fprintf(stderr, "comp: P7 = 0x%08x / %d\n",   c->dig_P7, c->dig_P7);
-	fprintf(stderr, "comp: P8 = 0x%08x / %d\n",   c->dig_P8, c->dig_P8);
-	fprintf(stderr, "comp: P9 = 0x%08x / %d\n\n", c->dig_P9, c->dig_P9);
+	fprintf(pressure_out_fd, "comp: P1 = 0x%08x / %u\n",   c->dig_P1, c->dig_P1);
+	fprintf(pressure_out_fd, "comp: P2 = 0x%08x / %d\n",   c->dig_P2, c->dig_P2);
+	fprintf(pressure_out_fd, "comp: P3 = 0x%08x / %d\n",   c->dig_P3, c->dig_P3);
+	fprintf(pressure_out_fd, "comp: P4 = 0x%08x / %d\n",   c->dig_P4, c->dig_P4);
+	fprintf(pressure_out_fd, "comp: P5 = 0x%08x / %d\n",   c->dig_P5, c->dig_P5);
+	fprintf(pressure_out_fd, "comp: P6 = 0x%08x / %d\n",   c->dig_P6, c->dig_P6);
+	fprintf(pressure_out_fd, "comp: P7 = 0x%08x / %d\n",   c->dig_P7, c->dig_P7);
+	fprintf(pressure_out_fd, "comp: P8 = 0x%08x / %d\n",   c->dig_P8, c->dig_P8);
+	fprintf(pressure_out_fd, "comp: P9 = 0x%08x / %d\n\n", c->dig_P9, c->dig_P9);
 
-	fprintf(stderr, "comp: H1 = 0x%08x / %u\n", c->dig_H1, c->dig_H1);
-	fprintf(stderr, "comp: H2 = 0x%08x / %d\n", c->dig_H2, c->dig_H2);
-	fprintf(stderr, "comp: H3 = 0x%08x / %u\n", c->dig_H3, c->dig_H3);
-	fprintf(stderr, "comp: H4 = 0x%08x / %d\n", c->dig_H4, c->dig_H4);
-	fprintf(stderr, "comp: H5 = 0x%08x / %d\n", c->dig_H5, c->dig_H5);
-	fprintf(stderr, "comp: H6 = 0x%08x / %d\n", c->dig_H6, c->dig_H6);
+	fprintf(pressure_out_fd, "comp: H1 = 0x%08x / %u\n", c->dig_H1, c->dig_H1);
+	fprintf(pressure_out_fd, "comp: H2 = 0x%08x / %d\n", c->dig_H2, c->dig_H2);
+	fprintf(pressure_out_fd, "comp: H3 = 0x%08x / %u\n", c->dig_H3, c->dig_H3);
+	fprintf(pressure_out_fd, "comp: H4 = 0x%08x / %d\n", c->dig_H4, c->dig_H4);
+	fprintf(pressure_out_fd, "comp: H5 = 0x%08x / %d\n", c->dig_H5, c->dig_H5);
+	fprintf(pressure_out_fd, "comp: H6 = 0x%08x / %d\n", c->dig_H6, c->dig_H6);
 
-	fprintf(stderr, "\n");
+	fprintf(pressure_out_fd, "\n");
 
 	return;
 }
@@ -262,7 +281,7 @@ void m_bme280_convert_and_store_data(const uint8_t * buffer, struct m_bme280_com
 		buffer[6] << 8      /* hum_msb */
 		| buffer[7];        /* hum_lsb */
 
-	fprintf(stderr, "%u, %u, %u, %d, %u, %u\n",
+	fprintf(pressure_out_fd, "%u, %u, %u, %d, %u, %u\n",
 		raw_pressure, bme280_compensate_pressure_int32(raw_pressure, c),
 		raw_temperature, bme280_compensate_temperature_int32(raw_temperature, c),
 		raw_humidity, bme280_compensate_pressure_int32(raw_humidity, c));
@@ -278,7 +297,7 @@ void m_bme280_convert_and_store_data(const uint8_t * buffer, struct m_bme280_com
   Apply compensation data @c to the measurements.
   Store measurement data.
 */
-int m_bme280_read_loop(int fd, int32_t count, int ms, struct m_bme280_compensation * c)
+int m_bme280_read_loop(int fd, int ms, struct m_bme280_compensation * c)
 {
 	/*
 	  Read loop.
@@ -297,19 +316,69 @@ int m_bme280_read_loop(int fd, int32_t count, int ms, struct m_bme280_compensati
 
 	uint8_t buffer[block_size];
 
-	for (int i = 0; i < count; i++) {
+	while (!cancel_treads) {
 		buffer[0] = block_start;
 		int rv = m_i2c_read(fd, block_start, buffer, block_size);
 		if (rv == -1) {
-			fprintf(stderr, "%s:%d: read data failed\n", __FILE__, __LINE__);
+			fprintf(pressure_out_fd, "%s:%d: read data failed\n", __FILE__, __LINE__);
 			return -1;
 		}
-		//fprintf(stderr, "%02x %02x %02x %02x %02x %02x %02x %02x\n", buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
+		//fprintf(pressure_out_fd, "%02x %02x %02x %02x %02x %02x %02x %02x\n", buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
 
 		m_bme280_convert_and_store_data(buffer, c);
 
 		usleep(1000 * ms);
 	}
 
+	fprintf(pressure_out_fd, "pressure read loop returning\n");
+
 	return 0;
+}
+
+
+
+
+int pressure_prepare(void)
+{
+	pressure_out_fd = stderr;
+
+	int fd = m_i2c_open_slave(BME280_I2C_ADDR);
+	if (fd == -1) {
+		return -1;
+	}
+
+	uint8_t cid = m_bme280_read_chip_id(fd);
+	if (cid == 0) {
+		close(fd);
+		return -1;
+	}
+	fprintf(pressure_out_fd, "%s:%d: pressure chip id = 0x%02x\n", __FILE__, __LINE__, cid);
+
+	if (-1 == m_bme280_get_compensation_data(fd, &bme280_comp)) {
+		close(fd);
+		return -1;
+	}
+
+	if (-1 == m_bme280_configure(fd)) {
+		close(fd);
+		return -1;
+	}
+
+	pressure_sensor_fd = fd;
+
+	return 0;
+}
+
+
+
+
+void * pressure_thread_fn(void * dummy)
+{
+        fprintf(pressure_out_fd, "pressure thread function begin\n");
+
+	m_bme280_read_loop(pressure_sensor_fd, pressure_ms, &bme280_comp);
+
+        fprintf(pressure_out_fd, "pressure thread function end\n");
+
+        return NULL;
 }

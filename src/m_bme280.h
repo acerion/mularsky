@@ -37,11 +37,8 @@ struct m_bme280_compensation {
 
 
 
-uint8_t m_bme280_read_chip_id(int fd);
-int m_bme280_configure(int fd);
-int m_bme280_get_compensation_data(int fd, struct m_bme280_compensation * c);
-void m_bme280_convert_and_store_data(const uint8_t * buffer, struct m_bme280_compensation * c);
-int m_bme280_read_loop(int fd, int32_t count, int ms, struct m_bme280_compensation * c);
+int pressure_prepare(void);
+void * pressure_thread_fn(void * dummy);
 
 
 
