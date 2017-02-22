@@ -10,14 +10,20 @@
 
 
 #include "m_bme280.h"
+#include "m_bno055.h"
 #include "m_i2c.h"
 
 
 
 bool cancel_treads;
 extern int pressure_sensor_fd;
+extern int imu_sensor_fd;
 
 static pthread_t pressure_thread;
+static pthread_t imu_thread;
+
+static bool run_pressure = true;
+static bool run_imu = true;
 
 
 
@@ -41,6 +47,12 @@ void m_atexit(void)
 		pressure_sensor_fd = 0;
 	}
 
+	if (imu_sensor_fd) {
+		fprintf(stderr, "closing imu sensor file\n");
+		close(imu_sensor_fd);
+		imu_sensor_fd = 0;
+	}
+
 	sleep(1);
 
 	return;
@@ -54,17 +66,40 @@ int main(int argc, char ** argv)
 	atexit(m_atexit);
 	signal(SIGINT, m_sighandler);
 
-	if (-1 == pressure_prepare()) {
-		exit(EXIT_FAILURE);
+
+
+	if (run_pressure) {
+		if (-1 == pressure_prepare()) {
+			exit(EXIT_FAILURE);
+		}
+		errno = 0;
+		int rv = pthread_create(&pressure_thread, NULL, pressure_thread_fn, NULL);
+		fprintf(stderr, "pressure thread created: %d / %s\n", rv, strerror(errno));
 	}
-	errno = 0;
-        int rv = pthread_create(&pressure_thread, NULL, pressure_thread_fn, NULL);
-        fprintf(stderr, "pressure thread created: %d / %s\n", rv, strerror(errno));
+
+	if (run_imu) {
+		if (-1 == imu_prepare()) {
+			exit(EXIT_FAILURE);
+		}
+		errno = 0;
+		int rv = pthread_create(&imu_thread, NULL, imu_thread_fn, NULL);
+		fprintf(stderr, "imu thread created: %d / %s\n", rv, strerror(errno));
+	}
 
 
-        errno = 0;
-        rv = pthread_join(pressure_thread, NULL);
-        fprintf(stderr, "pressure thread joined: %d / %s\n", rv, strerror(errno));
+
+	if (run_pressure) {
+		errno = 0;
+		int rv = pthread_join(pressure_thread, NULL);
+		fprintf(stderr, "pressure thread joined: %d / %s\n", rv, strerror(errno));
+	}
+
+	if (run_imu) {
+		errno = 0;
+		int rv = pthread_join(imu_thread, NULL);
+		fprintf(stderr, "imu thread joined: %d / %s\n", rv, strerror(errno));
+	}
+
 
         sleep(1);
 

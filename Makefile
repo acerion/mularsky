@@ -10,7 +10,8 @@ VPATH = src src/pressure/
 SRC = src/main.c \
 	src/pressure/bme280.c \
 	src/m_i2c.c \
-	src/m_bme280.c
+	src/m_bme280.c \
+	src/m_bno055.c
 
 
 OBJS = $(SRC:.c=.o)
