@@ -1,3 +1,12 @@
+	2017-02-22
+
+	IMU:
+
+	First commit of template code for communicating with IMU chip
+	(BNO055).
+
+
+
 	2017-02-19
 
 	Pressure sensor:
@@ -8,6 +17,7 @@
 	files in my project. bme280_support.c has been removed entirely.
 
 
+
 	2017-02-18
 
 	Pressure sensor:
@@ -15,6 +25,7 @@
 	Beginning to use compensation functions from Bosh's files. This
 	means that I'm able to read actual values of pressure, temperature
 	and humidity.
+
 
 
 	2017-02-14
