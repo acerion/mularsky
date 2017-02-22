@@ -281,10 +281,20 @@ void m_bme280_convert_and_store_data(const uint8_t * buffer, struct m_bme280_com
 		buffer[6] << 8      /* hum_msb */
 		| buffer[7];        /* hum_lsb */
 
+	/* Function calculating compensated temperature also
+	   calculates t->fine. This parameter is then used in
+	   functions calculating compensated pressure and humidity.
+	   So calculate compensated temperature first. Then pressure
+	   and humidity. */
+
+	int32_t c_temperature = bme280_compensate_temperature_int32(raw_temperature, c);
+	uint32_t c_pressure = bme280_compensate_pressure_int32(raw_pressure, c);
+	uint32_t c_humidity = bme280_compensate_pressure_int32(raw_humidity, c);
+
 	fprintf(pressure_out_fd, "%u, %u, %u, %d, %u, %u\n",
-		raw_pressure, bme280_compensate_pressure_int32(raw_pressure, c),
-		raw_temperature, bme280_compensate_temperature_int32(raw_temperature, c),
-		raw_humidity, bme280_compensate_pressure_int32(raw_humidity, c));
+		raw_pressure, c_pressure,
+		raw_temperature, c_temperature,
+		raw_humidity, c_humidity);
 
 	return;
 }
