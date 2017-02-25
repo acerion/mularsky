@@ -24,11 +24,20 @@ static const int imu_ms = 1000; /* [milliseconds] */
 
 
 
-#define BNO055_I2C_ADDR 0x77
+#define BNO055_I2C_ADDR 0x28
 
 /* BNO055 configuration registers and their contents (chip configuration). */
 
-#define BNO055_REG_CHIP_ID         0xD0   /* Read only. */
+#define BNO055_REG_CHIP_ID         0x00   /* Read only. Value: 0xA0. */
+#define BNO055_REG_ACC_ID          0x01   /* Read only. Value: 0xFB. */
+#define BNO055_REG_MAG_ID          0x02   /* Read only. Value: 0x32. */
+#define BNO055_REG_GYR_ID          0x03   /* Read only. Value: 0x0F. */
+
+#define BNO055_REG_ST_RESULT       0x36
+#define BNO055_REG_SYS_STATUS      0x39
+#define BNO055_REG_SYS_ERR         0x3A
+#define BNO055_REG_SYS_TRIGGER     0x3F   /* Write 0x01 to trigger BIST test. */
+
 
 #define BNO055_REG_CTRL_CONFIG     0xF5
 #define BNO055_SETTING_STBY        0xe0   /* 111x xxxx = 250 ms (table 27). */
@@ -46,7 +55,7 @@ static const int imu_ms = 1000; /* [milliseconds] */
 
 
 static void m_bno055_convert_and_store_compensation(const uint8_t * buffer, struct m_bno055_compensation * c);
-static uint8_t m_bno055_read_chip_id(int fd);
+static int m_bno055_read_initial(int fd);
 static int m_bno055_configure(int fd);
 static int m_bno055_get_compensation_data(int fd, struct m_bno055_compensation * c);
 static void m_bno055_convert_and_store_data(const uint8_t * buffer, struct m_bno055_compensation * c);
@@ -56,20 +65,107 @@ static int m_bno055_read_loop(int fd, int ms, struct m_bno055_compensation * c);
 
 
 /*
-  Read Chip ID.
+  Read Chip ID, other IDs, POST results and BIST results
 
-  Chapter 5.4.1 Register 0xD0 "id".
-  "This number can be read as soon as the device finished the power-on-reset."
+  Table 4-2: Register Map Page 0
 */
-uint8_t m_bno055_read_chip_id(int fd)
+int m_bno055_read_initial(int fd)
 {
-	uint8_t id = 0;
-	if (-1 == m_i2c_read(fd, BNO055_REG_CHIP_ID, &id, 1)) {
-		fprintf(imu_out_fd, "%s:%d: failed to read imu chip id\n", __FILE__, __LINE__);
-		return 0;
+	uint8_t buffer[2] = { 0 };
+	if (-1 == m_i2c_read(fd, BNO055_REG_CHIP_ID, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu chip id\n");
+		return -1;
 	}
+	fprintf(imu_out_fd, "imu chip id: %02X\n", buffer[0]);
 
-	return id;
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_ACC_ID, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu acc id\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu acc id:  %02X\n", buffer[0]);
+
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_MAG_ID, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu mag id\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu mag id:  %02X\n", buffer[0]);
+
+
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_GYR_ID, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu gyr id\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu gyr id:  %02X\n", buffer[0]);
+
+
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_ST_RESULT, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu POST results\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu POST result: %02X\n", buffer[0]);
+
+
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_SYS_STATUS, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu SYS status before BIST\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu SYS status before BIST: %02X\n", buffer[0]);
+
+
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_SYS_ERR, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu SYS err before BIST\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu SYS err before BIST:    %02X\n", buffer[0]);
+
+
+#if 0
+	fprintf(imu_out_fd, "imu BIST start\n");
+	buffer[0] = BNO055_REG_SYS_TRIGGER;
+	buffer[1] = 0x01;
+	if (write(fd, buffer, 2) != 2) {
+		fprintf(imu_out_fd, "imu BIST trigger failed\n");
+		return -1;
+	}
+	do {
+		sleep(1);
+		if (-1 == m_i2c_read(fd, BNO055_REG_SYS_STATUS, buffer, 1)) {
+			fprintf(imu_out_fd, "failed to read imu SYS status during BIST\n");
+			return -1;
+		}
+		fprintf(imu_out_fd, "imu SYS status during BIST: %02X\n", buffer[0]);
+	} while (buffer[0] == 0x04); /* 0x04 - executing selftest (4.3.58 SYS_STATUS 0x39) */
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_ST_RESULT, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu ST result after BIST\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu ST result after BIST:  %02X\n", buffer[0]);
+
+
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_SYS_STATUS, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu SYS status after BIST\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu SYS status after BIST: %02X\n", buffer[0]);
+
+
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_SYS_ERR, buffer, 1)) {
+		fprintf(imu_out_fd, "failed to read imu SYS err after BIST\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu SYS err after BIST:    %02X\n", buffer[0]);
+#endif
+
+	return -1;
 }
 
 
@@ -312,17 +408,15 @@ int imu_prepare(void)
 {
 	imu_out_fd = stderr;
 
-	int fd = m_i2c_open_slave(BNO055_I2C_ADDR);
+	int fd = m_i2c_open_slave(3, BNO055_I2C_ADDR);
 	if (fd == -1) {
 		return -1;
 	}
 
-	uint8_t cid = m_bno055_read_chip_id(fd);
-	if (cid == 0) {
+	if (-1 == m_bno055_read_initial(fd)) {
 		close(fd);
 		return -1;
 	}
-	fprintf(imu_out_fd, "%s:%d: imu chip id = 0x%02x\n", __FILE__, __LINE__, cid);
 
 	if (-1 == m_bno055_get_compensation_data(fd, &bno055_comp)) {
 		close(fd);
