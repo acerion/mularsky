@@ -18,16 +18,20 @@
 
 
 
-#define I2C_FILENAME "/dev/i2c-1"
+#define I2C_FILENAME_PATTERN "/dev/i2c-%d"
 
 
 
 /*
+  dev - number in /dev/i2c-X path
   address - I2C bus address of slave device
 */
-int m_i2c_open_slave(uint8_t address)
+int m_i2c_open_slave(int dev, uint8_t address)
 {
-	int fd = open(I2C_FILENAME, O_RDWR);
+	char buffer[sizeof (I2C_FILENAME_PATTERN) + 3] = { 0 };
+	snprintf(buffer, sizeof (buffer), I2C_FILENAME_PATTERN, dev);
+
+	int fd = open(buffer, O_RDWR);
 	if (fd < 0) {
 		return -1;
 	}

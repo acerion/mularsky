@@ -352,7 +352,7 @@ int pressure_prepare(void)
 {
 	pressure_out_fd = stderr;
 
-	int fd = m_i2c_open_slave(BME280_I2C_ADDR);
+	int fd = m_i2c_open_slave(3, BME280_I2C_ADDR);
 	if (fd == -1) {
 		return -1;
 	}

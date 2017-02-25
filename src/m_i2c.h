@@ -9,7 +9,7 @@
 
 
 
-int m_i2c_open_slave(uint8_t address);
+int m_i2c_open_slave(int dev, uint8_t address);
 int m_i2c_read(int fd, uint8_t reg, uint8_t * buffer, size_t size);
 
 

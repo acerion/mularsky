@@ -22,7 +22,7 @@ extern int imu_sensor_fd;
 static pthread_t pressure_thread;
 static pthread_t imu_thread;
 
-static bool run_pressure = true;
+static bool run_pressure = false;
 static bool run_imu = true;
 
 
