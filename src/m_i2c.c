@@ -54,7 +54,8 @@ int m_i2c_open_slave(int dev, uint8_t address)
 */
 int m_i2c_read(int fd, uint8_t reg, uint8_t * buffer, size_t size)
 {
-	if (write(fd, &reg, 1) != 1) {
+	buffer[0] = reg;
+	if (write(fd, buffer, 1) != 1) {
 		fprintf(stderr, "%s:%d: write@read failed\n", __FILE__, __LINE__);
 		return -1;
 	}
