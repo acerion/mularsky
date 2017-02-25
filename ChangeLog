@@ -1,3 +1,22 @@
+	2017-02-25
+
+	IMU:
+
+	Committing code that actually reads some info from IMU chip, so
+	now it's a matter of reading chip's spec and implementing rest of
+	interesting parts.
+
+
+	I2C:
+
+	I will need to have two I2C devices in /dev on my RPi: one
+	accessible through standard I2C driver and pins, and one
+	accessible through driver that does bit-banging on GPIOs. The
+	second one is for IMU that requires clock stretching. Clock
+	stretching is not supported by the first driver.
+
+
+
 	2017-02-22
 
 	IMU:
@@ -11,9 +30,9 @@
 
 	Pressure sensor:
 
-	Removing from Bosh's files all code that is not directly related
+	Removing from Bosch's files all code that is not directly related
 	to calculating of compensated values of measurements. Compensation
-	of measurements is the only thing that I will need from Bosh's
+	of measurements is the only thing that I will need from Bosch's
 	files in my project. bme280_support.c has been removed entirely.
 
 
@@ -22,7 +41,7 @@
 
 	Pressure sensor:
 
-	Beginning to use compensation functions from Bosh's files. This
+	Beginning to use compensation functions from Bosch's files. This
 	means that I'm able to read actual values of pressure, temperature
 	and humidity.
 
