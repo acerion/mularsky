@@ -65,6 +65,7 @@ static const int imu_ms = 1000; /* [milliseconds] */
 static void m_bno055_convert_and_store_compensation(const uint8_t * buffer, struct m_bno055_compensation * c);
 static int m_bno055_read_initial(int fd);
 static int m_bno055_calibrate(int fd);
+static int m_bno055_read_calibration(int fd);
 static int m_bno055_read(int fd);
 static int m_bno055_configure(int fd);
 static int m_bno055_get_compensation_data(int fd, struct m_bno055_compensation * c);
@@ -189,6 +190,7 @@ int m_bno055_calibrate(int fd)
 		fprintf(imu_out_fd, "imu: failed to set oper mode\n");
 		return -1;
 	}
+	usleep(30); /* Operating mode switching time. */
 #endif
 
 	int i = 0;
@@ -215,6 +217,87 @@ int m_bno055_calibrate(int fd)
 	return 0;
 }
 
+
+
+
+int m_bno055_read_calibration(int fd)
+{
+	uint8_t buffer[6] = { 0 };
+
+
+	/* 3.11.4 Reuse of Calibration Profile
+	   "Host system can read the offsets and radius only after a
+	   full calibration is achieved and the operation mode is
+	   switched to CONFIG_MODE." */
+	buffer[0] = BNO055_REG_OPR_MODE;
+	buffer[1] = BNO055_OPR_MODE_CONFIGMODE;
+	if (write(fd, buffer, 2) != 2) {
+		fprintf(imu_out_fd, "imu: failed to set oper mode before reading calibration\n");
+		return -1;
+	}
+	usleep(30); /* Operating mode switching time. */
+
+
+
+	/* Accelerometer offset. */
+	if (-1 == m_i2c_read(fd, 0x55, buffer, 6)) {
+		fprintf(imu_out_fd, "imu: failed to read imu acc offset\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu: calibration data: acc offset: x = %02X%02X, y = %02X%02X, z = %02X%02X\n",
+		buffer[1], buffer[0], buffer[3], buffer[2], buffer[5], buffer[4]);
+
+
+	/* Mangnetometer offset. */
+	if (-1 == m_i2c_read(fd, 0x5B, buffer, 6)) {
+		fprintf(imu_out_fd, "imu: failed to read imu mag offset\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu: calibration data: mag offset: x = %02X%02X, y = %02X%02X, z = %02X%02X\n",
+		buffer[1], buffer[0], buffer[3], buffer[2], buffer[5], buffer[4]);
+
+
+	/* Gyroscope offset. */
+	if (-1 == m_i2c_read(fd, 0x61, buffer, 6)) {
+		fprintf(imu_out_fd, "imu: failed to read imu gyro offset\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu: calibration data: gyro offset: x = %02X%02X, y = %02X%02X, z = %02X%02X\n",
+		buffer[1], buffer[0], buffer[3], buffer[2], buffer[5], buffer[4]);
+
+
+	/* Accelerometer radius. */
+	if (-1 == m_i2c_read(fd, 0x67, buffer, 2)) {
+		fprintf(imu_out_fd, "imu: failed to read imu acc radius\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu: calibration data: acc radius: %02X%02X\n", buffer[1], buffer[0]);
+
+
+	/* Magnetometer radius. */
+	if (-1 == m_i2c_read(fd, 0x69, buffer, 2)) {
+		fprintf(imu_out_fd, "imu: failed to read imu mag radius\n");
+		return -1;
+	}
+	fprintf(imu_out_fd, "imu: calibration data: mag radius: %02X%02X\n", buffer[1], buffer[0]);
+
+
+
+	buffer[0] = BNO055_REG_OPR_MODE;
+	buffer[1] = BNO055_OPR_MODE_FUS_NDOF1;
+	if (write(fd, buffer, 2) != 2) {
+		fprintf(imu_out_fd, "imu: failed to set oper mode after reading calibration\n");
+		return -1;
+	}
+	usleep(30); /* Operating mode switching time. */
+
+
+	return 0;
+}
+
+
+
+
 int m_bno055_read(int fd)
 {
 	uint8_t start = 0x1A; /* Beginning of Euler angles. */
@@ -225,11 +308,14 @@ int m_bno055_read(int fd)
 			fprintf(imu_out_fd, "imu: failed to read data\n");
 			return -1;
 		}
+
+		/* Table 3-22: Gyroscope unit settings
+		   "1 Dps = 16 LSB" */
 		fprintf(imu_out_fd, "imu: data: heading (yaw) = %d, roll = %d, pitch = %d\n",
 			((int16_t) ((buffer[1] << 8) | buffer[0])) / 16,
 			((int16_t) ((buffer[3] << 8) | buffer[2])) / 16,
 			((int16_t) ((buffer[5] << 8) | buffer[4])) / 16);
-		usleep(100);
+		sleep(1);
 	}
 
 	return 0;
@@ -490,14 +576,20 @@ int imu_prepare(void)
 	}
 
 
+	if (-1 == m_bno055_read_calibration(fd)) {
+		close(fd);
+		return -1;
+	}
+
+
 	if (-1 == m_bno055_read(fd)) {
 		close(fd);
 		return -1;
 	}
 
 
-	return -1;
 
+	return -1;
 
 	if (-1 == m_bno055_get_compensation_data(fd, &bno055_comp)) {
 		close(fd);
