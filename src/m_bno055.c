@@ -38,6 +38,14 @@ static const int imu_ms = 1000; /* [milliseconds] */
 #define BNO055_REG_SYS_ERR         0x3A
 #define BNO055_REG_SYS_TRIGGER     0x3F   /* Write 0x01 to trigger BIST test. */
 
+#define BNO055_REG_CALIB_STAT      0x35
+#define BNO055_REG_OPR_MODE        0x3D
+
+#define BNO055_OPR_MODE_CONFIGMODE 0x00
+#define BNO055_OPR_MODE_FUS_IMU    0x08
+#define BNO055_OPR_MODE_FUS_NDOF0  0x0B   /* NDOF_FMC_OFF */
+#define BNO055_OPR_MODE_FUS_NDOF1  0x0C   /* NDOF */
+
 
 #define BNO055_REG_CTRL_CONFIG     0xF5
 #define BNO055_SETTING_STBY        0xe0   /* 111x xxxx = 250 ms (table 27). */
@@ -56,6 +64,8 @@ static const int imu_ms = 1000; /* [milliseconds] */
 
 static void m_bno055_convert_and_store_compensation(const uint8_t * buffer, struct m_bno055_compensation * c);
 static int m_bno055_read_initial(int fd);
+static int m_bno055_calibrate(int fd);
+static int m_bno055_read(int fd);
 static int m_bno055_configure(int fd);
 static int m_bno055_get_compensation_data(int fd, struct m_bno055_compensation * c);
 static void m_bno055_convert_and_store_data(const uint8_t * buffer, struct m_bno055_compensation * c);
@@ -165,9 +175,65 @@ int m_bno055_read_initial(int fd)
 	fprintf(imu_out_fd, "imu SYS err after BIST:    %02X\n", buffer[0]);
 #endif
 
-	return -1;
+	return 0;
 }
 
+
+
+
+int m_bno055_calibrate(int fd)
+{
+#if 1
+	uint8_t buf[2] = { BNO055_REG_OPR_MODE, BNO055_OPR_MODE_FUS_NDOF1 };
+	if (write(fd, buf, 2) != 2) {
+		fprintf(imu_out_fd, "imu: failed to set oper mode\n");
+		return -1;
+	}
+#endif
+
+	int i = 0;
+	uint8_t buffer = 0;
+
+	while (i != 5) {
+		if (-1 == m_i2c_read(fd, BNO055_REG_CALIB_STAT, &buffer, 1)) {
+			fprintf(imu_out_fd, "imu: failed to read imu calibration status\n");
+			return -1;
+		}
+		fprintf(imu_out_fd, "imu: calibration status: sys: %d, gyr: %d, acc: %d, mag: %d\n",
+			(buffer & 0xC0) >> 6, (buffer & 0x30) >> 4, (buffer & 0x0C) >> 2, buffer & 0x03);
+
+
+		if (buffer == 0xff) {
+			i++; /* We want to have correct state of calibration for N seconds before completing calibration step. */
+		} else {
+			i = 0;
+		}
+
+		sleep(1);
+	}
+
+	return 0;
+}
+
+int m_bno055_read(int fd)
+{
+	uint8_t start = 0x1A; /* Beginning of Euler angles. */
+	uint8_t buffer[6] = { 0 };
+
+	while (1) {
+		if (-1 == m_i2c_read(fd, start, buffer, 6)) {
+			fprintf(imu_out_fd, "imu: failed to read data\n");
+			return -1;
+		}
+		fprintf(imu_out_fd, "imu: data: heading (yaw) = %d, roll = %d, pitch = %d\n",
+			((int16_t) ((buffer[1] << 8) | buffer[0])) / 16,
+			((int16_t) ((buffer[3] << 8) | buffer[2])) / 16,
+			((int16_t) ((buffer[5] << 8) | buffer[4])) / 16);
+		usleep(100);
+	}
+
+	return 0;
+}
 
 
 
@@ -417,6 +483,21 @@ int imu_prepare(void)
 		close(fd);
 		return -1;
 	}
+
+	if (-1 == m_bno055_calibrate(fd)) {
+		close(fd);
+		return -1;
+	}
+
+
+	if (-1 == m_bno055_read(fd)) {
+		close(fd);
+		return -1;
+	}
+
+
+	return -1;
+
 
 	if (-1 == m_bno055_get_compensation_data(fd, &bno055_comp)) {
 		close(fd);
