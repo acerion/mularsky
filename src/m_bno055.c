@@ -47,7 +47,9 @@ static const int imu_ms = 1000; /* [milliseconds] */
 
 
 static int m_bno055_read_initial(int fd);
-static int m_bno055_calibrate(int fd);
+static int m_bno055_calibrate_manually(int fd);
+static int m_bno055_calibrate_from_data(int fd);
+static int m_bno055_get_overall_status(int fd);
 static int m_bno055_read_calibration(int fd);
 static int m_bno055_run_bist(int fd);
 static int m_bno055_configure(int fd);
@@ -86,7 +88,6 @@ int m_bno055_read_initial(int fd)
 	fprintf(imu_out_fd, "imu mag id:  %02X\n", buffer[0]);
 
 
-
 	if (-1 == m_i2c_read(fd, BNO055_REG_GYR_ID, buffer, 1)) {
 		fprintf(imu_out_fd, "failed to read imu gyr id\n");
 		return -1;
@@ -94,29 +95,36 @@ int m_bno055_read_initial(int fd)
 	fprintf(imu_out_fd, "imu gyr id:  %02X\n", buffer[0]);
 
 
+	return m_bno055_get_overall_status(fd);
+}
 
-	if (-1 == m_i2c_read(fd, BNO055_REG_ST_RESULT, buffer, 1)) {
+
+
+
+int m_bno055_get_overall_status(int fd)
+{
+	uint8_t buffer = { 0 };
+
+
+	if (-1 == m_i2c_read(fd, BNO055_REG_ST_RESULT, &buffer, 1)) {
 		fprintf(imu_out_fd, "failed to read imu POST results\n");
 		return -1;
 	}
-	fprintf(imu_out_fd, "imu POST result: %02X\n", buffer[0]);
+	fprintf(imu_out_fd, "imu POST result: %02X\n", buffer);
 
 
-
-	if (-1 == m_i2c_read(fd, BNO055_REG_SYS_STATUS, buffer, 1)) {
+	if (-1 == m_i2c_read(fd, BNO055_REG_SYS_STATUS, &buffer, 1)) {
 		fprintf(imu_out_fd, "failed to read imu SYS status before BIST\n");
 		return -1;
 	}
-	fprintf(imu_out_fd, "imu SYS status: %02X\n", buffer[0]);
+	fprintf(imu_out_fd, "imu SYS status:  %02X\n", buffer);
 
 
-
-	if (-1 == m_i2c_read(fd, BNO055_REG_SYS_ERR, buffer, 1)) {
+	if (-1 == m_i2c_read(fd, BNO055_REG_SYS_ERR, &buffer, 1)) {
 		fprintf(imu_out_fd, "failed to read imu SYS err before BIST\n");
 		return -1;
 	}
-	fprintf(imu_out_fd, "imu SYS err:    %02X\n", buffer[0]);
-
+	fprintf(imu_out_fd, "imu SYS err:     %02X\n", buffer);
 
 
 	return 0;
@@ -174,9 +182,10 @@ int m_bno055_run_bist(int fd)
 
 
 
-int m_bno055_calibrate(int fd)
+int m_bno055_calibrate_manually(int fd)
 {
 #if 1
+	usleep(30);
 	uint8_t buf[2] = { BNO055_REG_OPR_MODE, BNO055_OPR_MODE_FUS_NDOF1 };
 	if (write(fd, buf, 2) != 2) {
 		fprintf(imu_out_fd, "imu: failed to set oper mode\n");
@@ -212,15 +221,52 @@ int m_bno055_calibrate(int fd)
 
 
 
+/*
+  3.11.4 Reuse of Calibration Profile
+*/
+int m_bno055_calibrate_from_data(int fd)
+{
+	fprintf(imu_out_fd, "imu: calibrating from data\n");
+
+	usleep(30);
+	uint8_t buf[2] = { BNO055_REG_OPR_MODE, BNO055_OPR_MODE_CONFIGMODE };
+	if (write(fd, buf, 2) != 2) {
+		fprintf(imu_out_fd, "imu: failed to set oper mode\n");
+		return -1;
+	}
+	usleep(30); /* Operating mode switching time. */
+
+	uint8_t buffer[] = { 0x55,        0x04, 0x00, 0x01, 0x00, 0x14, 0x00, 0xD0, 0xFD, 0x25, 0x00, 0x4A, 0xFF, 0xFE, 0xFF, 0xFC, 0xFF, 0xFF, 0xFF, 0xE8, 0x03, 0xE0, 0x02 };
+	if (write(fd, buffer, sizeof (buffer)) != sizeof (buffer)) {
+		fprintf(imu_out_fd, "imu: failed to write calibration data\n");
+		return -1;
+	}
+
+	usleep(30);
+	buf[0] = BNO055_REG_OPR_MODE;
+	buf[1] = BNO055_OPR_MODE_FUS_NDOF1;
+	if (write(fd, buf, 2) != 2) {
+		fprintf(imu_out_fd, "imu: failed to set oper mode\n");
+		return -1;
+	}
+	usleep(30); /* Operating mode switching time. */
+
+	return 0;
+}
+
+
+
+
 int m_bno055_read_calibration(int fd)
 {
-	uint8_t buffer[6] = { 0 };
+	uint8_t buffer[22] = { 0 };
 
 
 	/* 3.11.4 Reuse of Calibration Profile
 	   "Host system can read the offsets and radius only after a
 	   full calibration is achieved and the operation mode is
 	   switched to CONFIG_MODE." */
+	usleep(30);
 	buffer[0] = BNO055_REG_OPR_MODE;
 	buffer[1] = BNO055_OPR_MODE_CONFIGMODE;
 	if (write(fd, buffer, 2) != 2) {
@@ -230,51 +276,42 @@ int m_bno055_read_calibration(int fd)
 	usleep(30); /* Operating mode switching time. */
 
 
+	if (-1 == m_i2c_read(fd, 0x55, buffer, sizeof (buffer))) {
+		fprintf(imu_out_fd, "imu: failed to read imu calibration data\n");
+		return -1;
+	}
+
+	fprintf(imu_out_fd, "imu: calibration data:\n");
+	fprintf(imu_out_fd, "acc off x,acc off y,acc off z,mag off x,mag off y,mag off z,gyro off x,gyro off y,gyro off z,acc radius,mag radius\n");
 
 	/* Accelerometer offset. */
-	if (-1 == m_i2c_read(fd, 0x55, buffer, 6)) {
-		fprintf(imu_out_fd, "imu: failed to read imu acc offset\n");
-		return -1;
-	}
-	fprintf(imu_out_fd, "imu: calibration data: acc offset: x = %02X%02X, y = %02X%02X, z = %02X%02X\n",
-		buffer[1], buffer[0], buffer[3], buffer[2], buffer[5], buffer[4]);
+	fprintf(imu_out_fd, "%02X%02X,%02X%02X,%02X%02X,", buffer[1], buffer[0], buffer[3], buffer[2], buffer[5], buffer[4]);
 
-
-	/* Mangnetometer offset. */
-	if (-1 == m_i2c_read(fd, 0x5B, buffer, 6)) {
-		fprintf(imu_out_fd, "imu: failed to read imu mag offset\n");
-		return -1;
-	}
-	fprintf(imu_out_fd, "imu: calibration data: mag offset: x = %02X%02X, y = %02X%02X, z = %02X%02X\n",
-		buffer[1], buffer[0], buffer[3], buffer[2], buffer[5], buffer[4]);
-
+	/* Magnetometer offset. */
+	fprintf(imu_out_fd, "%02X%02X,%02X%02X,%02X%02X,", buffer[7], buffer[6], buffer[9], buffer[8], buffer[11], buffer[10]);
 
 	/* Gyroscope offset. */
-	if (-1 == m_i2c_read(fd, 0x61, buffer, 6)) {
-		fprintf(imu_out_fd, "imu: failed to read imu gyro offset\n");
-		return -1;
-	}
-	fprintf(imu_out_fd, "imu: calibration data: gyro offset: x = %02X%02X, y = %02X%02X, z = %02X%02X\n",
-		buffer[1], buffer[0], buffer[3], buffer[2], buffer[5], buffer[4]);
-
+	fprintf(imu_out_fd, "%02X%02X,%02X%02X,%02X%02X,", buffer[13], buffer[12], buffer[15], buffer[14], buffer[17], buffer[16]);
 
 	/* Accelerometer radius. */
-	if (-1 == m_i2c_read(fd, 0x67, buffer, 2)) {
-		fprintf(imu_out_fd, "imu: failed to read imu acc radius\n");
-		return -1;
-	}
-	fprintf(imu_out_fd, "imu: calibration data: acc radius: %02X%02X\n", buffer[1], buffer[0]);
-
+	fprintf(imu_out_fd, "%02X%02X,", buffer[19], buffer[18]);
 
 	/* Magnetometer radius. */
-	if (-1 == m_i2c_read(fd, 0x69, buffer, 2)) {
-		fprintf(imu_out_fd, "imu: failed to read imu mag radius\n");
-		return -1;
+	fprintf(imu_out_fd, "%02X%02X", buffer[21], buffer[20]);
+
+	fprintf(imu_out_fd, "\n");
+
+
+	/* This is for copy-paste of calibration data into C code.
+	   0x55 is address of first register with calibration data. */
+	fprintf(imu_out_fd, "uint8_t buffer[] = { 0x55,        ");
+	for (int i = 0; i < sizeof (buffer); i++) {
+		fprintf(imu_out_fd, "0x%02X, ", buffer[i]);
 	}
-	fprintf(imu_out_fd, "imu: calibration data: mag radius: %02X%02X\n", buffer[1], buffer[0]);
+	fprintf(imu_out_fd, "};\n");
 
 
-
+	usleep(30);
 	buffer[0] = BNO055_REG_OPR_MODE;
 	buffer[1] = BNO055_OPR_MODE_FUS_NDOF1;
 	if (write(fd, buffer, 2) != 2) {
@@ -392,7 +429,6 @@ int m_bno055_read_loop(int fd, int ms)
 
 	while (!cancel_treads) {
 		buffer[0] = start;
-
 		if (-1 == m_i2c_read(fd, start, buffer, sizeof (buffer))) {
 			fprintf(imu_out_fd, "imu: failed to read data\n");
 			return -1;
@@ -425,10 +461,17 @@ int imu_prepare(void)
 		return -1;
 	}
 
-	if (-1 == m_bno055_calibrate(fd)) {
+#if 0
+	if (-1 == m_bno055_calibrate_manually(fd)) {
 		close(fd);
 		return -1;
 	}
+#else
+	if (-1 == m_bno055_calibrate_from_data(fd)) {
+		close(fd);
+		return -1;
+	}
+#endif
 
 
 	if (-1 == m_bno055_read_calibration(fd)) {
@@ -462,6 +505,13 @@ int imu_prepare(void)
 void * imu_thread_fn(void * dummy)
 {
         fprintf(imu_out_fd, "imu thread function begin\n");
+
+	if (-1 == m_bno055_get_overall_status(imu_sensor_fd)) {
+		fprintf(imu_out_fd, "imu: thread function: failed to get overall imu status\n");
+		close(imu_sensor_fd);
+		return NULL;
+	}
+
 
 	m_bno055_read_loop(imu_sensor_fd, imu_ms);
 
