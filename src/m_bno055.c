@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <errno.h>
+#include <string.h>
 
 #include "m_bno055.h"
 #include "m_i2c.h"
@@ -17,7 +19,7 @@ extern bool cancel_treads;
 
 static FILE * imu_out_fd;
 static const int imu_ms = 1000; /* [milliseconds] */
-
+static const char * data_filename = "imu.txt";
 
 
 
@@ -55,6 +57,24 @@ static int m_bno055_run_bist(int fd);
 static int m_bno055_configure(int fd);
 static void m_bno055_convert_and_store_data(const uint8_t * buffer);
 static int m_bno055_read_loop(int fd, int ms);
+
+
+
+
+int m_bno055_reset(int fd)
+{
+	uint8_t buffer[2] = { BNO055_REG_SYS_TRIGGER, 0x20 };
+	if (write(fd, buffer, 2) != 2) {
+		fprintf(imu_out_fd, "imu: reset failed\n");
+		return -1;
+	}
+
+	sleep(1);
+	errno = 0;
+	fprintf(imu_out_fd, "imu: reset performed\n");
+
+	return 0;
+}
 
 
 
@@ -261,7 +281,7 @@ int m_bno055_read_calibration(int fd)
 {
 	uint8_t buffer[22] = { 0 };
 
-
+#if 1
 	/* 3.11.4 Reuse of Calibration Profile
 	   "Host system can read the offsets and radius only after a
 	   full calibration is achieved and the operation mode is
@@ -274,7 +294,7 @@ int m_bno055_read_calibration(int fd)
 		return -1;
 	}
 	usleep(30); /* Operating mode switching time. */
-
+#endif
 
 	if (-1 == m_i2c_read(fd, 0x55, buffer, sizeof (buffer))) {
 		fprintf(imu_out_fd, "imu: failed to read imu calibration data\n");
@@ -447,14 +467,28 @@ int m_bno055_read_loop(int fd, int ms)
 
 
 
-int imu_prepare(void)
+int imu_prepare(char const * dirpath)
 {
-	imu_out_fd = stderr;
+	if (dirpath == NULL) {
+		imu_out_fd = stderr;
+	} else {
+		char buffer[64] = { 0 };
+		snprintf(buffer, sizeof (buffer), "%s/%s", dirpath, data_filename);
+		imu_out_fd = fopen(buffer, "w");
+		//setvbuf(imu_out_fd, NULL, _IONBF, 0);
+	}
 
 	int fd = m_i2c_open_slave(3, BNO055_I2C_ADDR);
 	if (fd == -1) {
 		return -1;
 	}
+
+
+	if (-1 == m_bno055_reset(fd)) {
+		close(fd);
+		return -1;
+	}
+
 
 	if (-1 == m_bno055_read_initial(fd)) {
 		close(fd);
@@ -516,6 +550,11 @@ void * imu_thread_fn(void * dummy)
 	m_bno055_read_loop(imu_sensor_fd, imu_ms);
 
         fprintf(imu_out_fd, "imu thread function end\n");
+
+	if (imu_out_fd && imu_out_fd != stderr) {
+		fclose(imu_out_fd);
+		imu_out_fd = NULL;
+	}
 
         return NULL;
 }

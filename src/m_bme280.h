@@ -37,7 +37,7 @@ struct m_bme280_compensation {
 
 
 
-int pressure_prepare(void);
+int pressure_prepare(char const * dirpath);
 void * pressure_thread_fn(void * dummy);
 
 

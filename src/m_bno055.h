@@ -4,7 +4,7 @@
 
 
 
-int imu_prepare(void);
+int imu_prepare(char const * dirpath);
 void * imu_thread_fn(void * dummy);
 
 

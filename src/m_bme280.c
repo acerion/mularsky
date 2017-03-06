@@ -31,7 +31,7 @@ extern bool cancel_treads;
 static FILE * pressure_out_fd;
 static struct m_bme280_compensation bme280_comp;
 static const int pressure_ms = 1000; /* [milliseconds] */
-
+static const char * data_filename = "pressure.txt";
 
 
 
@@ -348,9 +348,16 @@ int m_bme280_read_loop(int fd, int ms, struct m_bme280_compensation * c)
 
 
 
-int pressure_prepare(void)
+int pressure_prepare(char const * dirpath)
 {
-	pressure_out_fd = stderr;
+	if (dirpath == NULL) {
+		pressure_out_fd = stderr;
+	} else {
+		char buffer[64] = { 0 };
+		snprintf(buffer, sizeof (buffer), "%s/%s", dirpath, data_filename);
+		pressure_out_fd = fopen(buffer, "w");
+		//setvbuf(pressure_out_fd, NULL, _IONBF, 0);
+	}
 
 	int fd = m_i2c_open_slave(3, BME280_I2C_ADDR);
 	if (fd == -1) {
@@ -389,6 +396,11 @@ void * pressure_thread_fn(void * dummy)
 	m_bme280_read_loop(pressure_sensor_fd, pressure_ms, &bme280_comp);
 
         fprintf(pressure_out_fd, "pressure thread function end\n");
+
+	if (pressure_out_fd && pressure_out_fd != stderr) {
+		fclose(pressure_out_fd);
+		pressure_out_fd = NULL;
+	}
 
         return NULL;
 }

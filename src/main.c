@@ -65,11 +65,19 @@ int main(int argc, char ** argv)
 {
 	atexit(m_atexit);
 	signal(SIGINT, m_sighandler);
+	signal(SIGTERM, m_sighandler);
 
-
+	char * dir_path = NULL;
+	if (argc == 2) {
+		fprintf(stderr, "%s: checking path %s\n", argv[0], argv[1]);
+		if (0 != access(argv[1], X_OK | W_OK)) {
+			exit(EXIT_FAILURE);
+		}
+		dir_path = argv[1];
+	}
 
 	if (run_pressure) {
-		if (-1 == pressure_prepare()) {
+		if (-1 == pressure_prepare(dir_path)) {
 			exit(EXIT_FAILURE);
 		}
 		errno = 0;
@@ -78,7 +86,7 @@ int main(int argc, char ** argv)
 	}
 
 	if (run_imu) {
-		if (-1 == imu_prepare()) {
+		if (-1 == imu_prepare(dir_path)) {
 			exit(EXIT_FAILURE);
 		}
 		errno = 0;
