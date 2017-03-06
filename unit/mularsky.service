@@ -1,0 +1,13 @@
+[Unit]
+Description=Mularsky data collector
+After=network.target
+
+[Service]
+ExecStart=/home/pi/sw/mularsky/unit/start.sh
+ExecStop=/home/pi/sw/mularsky/unit/stop.sh
+Type=forking
+
+[Install]
+# WantedBy=multi-user.target
+WantedBy=default.target
+
