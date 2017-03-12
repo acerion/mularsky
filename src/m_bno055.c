@@ -5,16 +5,19 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <string.h>
+#include <time.h>
 
 #include "m_bno055.h"
 #include "m_i2c.h"
-
+#include "m_misc.h"
 
 
 
 int imu_sensor_fd = 0;
 
 extern bool cancel_treads;
+extern time_t global_time;
+extern int imu_led_time;
 
 
 static FILE * imu_out_fd;
@@ -416,13 +419,15 @@ void m_bno055_convert_and_store_data(const uint8_t * buffer)
 {
 	/* Table 3-22: Gyroscope unit settings
 	   "1 Dps = 16 LSB" */
-	fprintf(imu_out_fd, "imu: data:" \
+	fprintf(imu_out_fd, "imu: data@%lu:" \
 
 		"yaw=%d, roll=%d, pitch=%d " \
 
 		"temp=%d " \
 
 		"\n",
+
+		global_time,
 
 		((int16_t) ((buffer[19] << 8) | buffer[18])) / 16,
 		((int16_t) ((buffer[21] << 8) | buffer[20])) / 16,
@@ -546,6 +551,8 @@ void * imu_thread_fn(void * dummy)
 		return NULL;
 	}
 
+
+	imu_led_time = BLINK_OK;
 
 	m_bno055_read_loop(imu_sensor_fd, imu_ms);
 

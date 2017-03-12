@@ -3,9 +3,11 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "m_bme280.h"
 #include "m_i2c.h"
+#include "m_misc.h"
 #include "bme280.h"
 
 
@@ -27,6 +29,8 @@
 int pressure_sensor_fd = 0;
 
 extern bool cancel_treads;
+extern time_t global_time;
+extern int pressure_led_time;
 
 static FILE * pressure_out_fd;
 static struct m_bme280_compensation bme280_comp;
@@ -291,7 +295,8 @@ void m_bme280_convert_and_store_data(const uint8_t * buffer, struct m_bme280_com
 	uint32_t c_pressure = bme280_compensate_pressure_int32(raw_pressure, c);
 	uint32_t c_humidity = bme280_compensate_pressure_int32(raw_humidity, c);
 
-	fprintf(pressure_out_fd, "%u, %u, %u, %d, %u, %u\n",
+	fprintf(pressure_out_fd, "%lu: %u, %u, %u, %d, %u, %u\n",
+		global_time,
 		raw_pressure, c_pressure,
 		raw_temperature, c_temperature,
 		raw_humidity, c_humidity);
@@ -327,6 +332,8 @@ int m_bme280_read_loop(int fd, int ms, struct m_bme280_compensation * c)
 	uint8_t buffer[block_size];
 
 	while (!cancel_treads) {
+		global_time = time(NULL);
+
 		buffer[0] = block_start;
 		int rv = m_i2c_read(fd, block_start, buffer, block_size);
 		if (rv == -1) {
@@ -337,7 +344,8 @@ int m_bme280_read_loop(int fd, int ms, struct m_bme280_compensation * c)
 
 		m_bme280_convert_and_store_data(buffer, c);
 
-		usleep(1000 * ms);
+		usleep(100 * ms);
+
 	}
 
 	fprintf(pressure_out_fd, "pressure read loop returning\n");
@@ -392,6 +400,8 @@ int pressure_prepare(char const * dirpath)
 void * pressure_thread_fn(void * dummy)
 {
         fprintf(pressure_out_fd, "pressure thread function begin\n");
+
+	pressure_led_time = BLINK_OK;
 
 	m_bme280_read_loop(pressure_sensor_fd, pressure_ms, &bme280_comp);
 
