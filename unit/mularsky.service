@@ -6,6 +6,7 @@ After=network.target
 ExecStart=/home/pi/sw/mularsky/unit/start.sh
 ExecStop=/home/pi/sw/mularsky/unit/stop.sh
 Type=forking
+TimeoutSec=30min 0s
 
 [Install]
 # WantedBy=multi-user.target

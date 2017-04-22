@@ -5,6 +5,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 #include "m_i2c.h"
 
@@ -54,9 +56,12 @@ int m_i2c_open_slave(int dev, uint8_t address)
 */
 int m_i2c_read(int fd, uint8_t reg, uint8_t * buffer, size_t size)
 {
+	int e = 0;
+	errno = 0;
 	buffer[0] = reg;
 	if (write(fd, buffer, 1) != 1) {
-		fprintf(stderr, "%s:%d: write@read failed\n", __FILE__, __LINE__);
+		e = errno;
+		fprintf(stderr, "%s:%d: write@read failed (%d, %s)\n", __FILE__, __LINE__, fd, strerror(e));
 		return -1;
 	}
 	if (read(fd, buffer, size) != size) {

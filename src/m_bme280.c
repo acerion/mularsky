@@ -30,7 +30,7 @@ int pressure_sensor_fd = 0;
 
 extern bool cancel_treads;
 extern time_t global_time;
-extern int pressure_led_time;
+extern int pressure_led_time_ms;
 
 static FILE * pressure_out_fd;
 static struct m_bme280_compensation bme280_comp;
@@ -291,15 +291,24 @@ void m_bme280_convert_and_store_data(const uint8_t * buffer, struct m_bme280_com
 	   So calculate compensated temperature first. Then pressure
 	   and humidity. */
 
+#if 1
 	int32_t c_temperature = bme280_compensate_temperature_int32(raw_temperature, c);
 	uint32_t c_pressure = bme280_compensate_pressure_int32(raw_pressure, c);
 	uint32_t c_humidity = bme280_compensate_pressure_int32(raw_humidity, c);
 
-	fprintf(pressure_out_fd, "%lu: %u, %u, %u, %d, %u, %u\n",
+	fprintf(pressure_out_fd, "pressure@%lu: %u, %u, %u, %d, %u, %u\n",
 		global_time,
 		raw_pressure, c_pressure,
 		raw_temperature, c_temperature,
 		raw_humidity, c_humidity);
+#endif
+
+
+#if 0
+        fprintf(pressure_out_fd, "pressure@%lu: %u, %u, %u\n",
+                global_time,
+                raw_pressure, raw_temperature, raw_humidity);
+#endif
 
 	return;
 }
@@ -344,7 +353,7 @@ int m_bme280_read_loop(int fd, int ms, struct m_bme280_compensation * c)
 
 		m_bme280_convert_and_store_data(buffer, c);
 
-		usleep(100 * ms);
+		usleep(USECS_PER_MSEC * ms);
 
 	}
 
@@ -367,7 +376,7 @@ int pressure_prepare(char const * dirpath)
 		//setvbuf(pressure_out_fd, NULL, _IONBF, 0);
 	}
 
-	int fd = m_i2c_open_slave(3, BME280_I2C_ADDR);
+	int fd = m_i2c_open_slave(1, BME280_I2C_ADDR);
 	if (fd == -1) {
 		return -1;
 	}
@@ -401,7 +410,7 @@ void * pressure_thread_fn(void * dummy)
 {
         fprintf(pressure_out_fd, "pressure thread function begin\n");
 
-	pressure_led_time = BLINK_OK;
+	pressure_led_time_ms = BLINK_OK;
 
 	m_bme280_read_loop(pressure_sensor_fd, pressure_ms, &bme280_comp);
 

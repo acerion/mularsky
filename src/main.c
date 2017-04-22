@@ -24,11 +24,11 @@ time_t global_time;
 
 #define BEGINNING_OF_2017   1483232401 /* [s] since epoch. */
 
-int imu_led_time = BLINK_NOK;
-int pressure_led_time = BLINK_NOK;
-int gps_led_time = BLINK_NOK;
-const int space_led_time = 500;
-const int off_led_time = 1000;
+int imu_led_time_ms = BLINK_NOK;
+int pressure_led_time_ms = BLINK_NOK;
+int gps_led_time_ms = BLINK_NOK;
+const int space_led_time_ms = 500;
+const int off_led_time_ms = 1000;
 
 
 bool cancel_treads;
@@ -38,15 +38,9 @@ extern int imu_sensor_fd;
 static pthread_t pressure_thread;
 static pthread_t imu_thread;
 
-static bool run_pressure = false;
+static bool run_pressure = true;
 static bool run_imu = true;
 
-
-
-/* WiringPi numbering method. */
-#define G_GPIO_LED       29
-#define G_GPIO_BUTTON    28
-//#define G_GPIO_GPS_PPS    7
 
 
 static FILE * button_out_fd;
@@ -79,6 +73,8 @@ void m_atexit(void)
 	}
 
 	sleep(1);
+
+	digitalWrite(G_GPIO_LED, HIGH);
 
 	return;
 }
@@ -120,6 +116,7 @@ int main(int argc, char ** argv)
 			exit(EXIT_FAILURE);
 		}
 		errno = 0;
+		fprintf(stderr, "will create pressure thread\n");
 		int rv = pthread_create(&pressure_thread, NULL, pressure_thread_fn, NULL);
 		fprintf(stderr, "pressure thread created: %d / %s\n", rv, strerror(errno));
 	}
@@ -139,7 +136,7 @@ int main(int argc, char ** argv)
 	for (;;) {
 
 		if (global_time > BEGINNING_OF_2017) {
-			gps_led_time = BLINK_OK;
+			gps_led_time_ms = BLINK_OK;
 		}
 
 		int button_state = digitalRead(G_GPIO_BUTTON);
@@ -149,26 +146,25 @@ int main(int argc, char ** argv)
 			n_button_pressed = 0;
 		}
 		button_state = !button_state;
-		fprintf(button_out_fd, "button: state = %d, button counter = %d\n", button_state, n_button_pressed);
-
-
-		digitalWrite(G_GPIO_LED, button_state * HIGH);
-		usleep(1000 * gps_led_time);
-
-		digitalWrite(G_GPIO_LED, LOW);
-		usleep(1000 * space_led_time);
+		//fprintf(button_out_fd, "button: state = %d, button counter = %d\n", button_state, n_button_pressed);
 
 		digitalWrite(G_GPIO_LED, button_state * HIGH);
-		usleep(1000 * pressure_led_time);
+		usleep(USECS_PER_MSEC * gps_led_time_ms);
 
 		digitalWrite(G_GPIO_LED, LOW);
-		usleep(1000 * space_led_time);
+		usleep(USECS_PER_MSEC * space_led_time_ms);
 
 		digitalWrite(G_GPIO_LED, button_state * HIGH);
-		usleep(1000 * imu_led_time);
+		usleep(USECS_PER_MSEC * pressure_led_time_ms);
 
 		digitalWrite(G_GPIO_LED, LOW);
-		usleep(1000 * off_led_time);
+		usleep(USECS_PER_MSEC * space_led_time_ms);
+
+		digitalWrite(G_GPIO_LED, button_state * HIGH);
+		usleep(USECS_PER_MSEC * imu_led_time_ms);
+
+		digitalWrite(G_GPIO_LED, LOW);
+		usleep(USECS_PER_MSEC * off_led_time_ms);
 	}
 
 
