@@ -1,0 +1,11 @@
+[Unit]
+Description=Mularsky's button monitor
+After=network.target
+
+[Service]
+ExecStart=/home/pi/sw/mularsky/button
+Type=simple
+
+[Install]
+WantedBy=default.target
+
